@@ -6,7 +6,7 @@ import type { GameController } from '../game/controller';
 import { el } from './dom';
 import { icon, iconUrl } from './icons';
 
-export function mountHud(root: HTMLElement, controller: GameController): void {
+export function mountHud(root: HTMLElement, controller: GameController): HTMLElement {
   const coins = el('span', 'hud-num');
   const level = el('span', 'hud-level');
   const fill = el('div', 'xp-fill');
@@ -14,8 +14,9 @@ export function mountHud(root: HTMLElement, controller: GameController): void {
   const seasonIcon = icon('tree', 'hud-icon tall');
   const season = el('span', 'hud-season');
 
+  const coinPill = el('div', 'pill coins', icon('icon-coin', 'hud-icon'), coins);
   const bar = el('div', 'hud',
-    el('div', 'pill', icon('icon-coin', 'hud-icon'), coins),
+    coinPill,
     el('div', 'pill xp', icon('icon-star', 'hud-icon'), level, el('div', 'xp-bar', fill)),
     el('div', 'spacer'),
     el('div', 'pill', weather, seasonIcon, season),
@@ -40,4 +41,5 @@ export function mountHud(root: HTMLElement, controller: GameController): void {
   };
   render();
   controller.subscribe(render);
+  return coinPill;
 }

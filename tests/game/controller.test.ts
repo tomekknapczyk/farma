@@ -124,4 +124,17 @@ describe('GameController', () => {
     expect(() => c.act(() => ({ ok: true }))).not.toThrow();
     c.dispose();
   });
+
+  it('reset replaces the state with a fresh one, saves it and notifies', () => {
+    const store = fakeStore();
+    const c = new GameController(store, opts());
+    c.state.coins = 999;
+    const fn = vi.fn();
+    c.subscribe(fn);
+    c.reset(7);
+    expect(c.state.coins).toBe(createInitialState(7).coins);
+    expect(JSON.parse(store.data[SAVE_KEY]).coins).toBe(c.state.coins);
+    expect(fn).toHaveBeenCalledTimes(1);
+    c.dispose();
+  });
 });

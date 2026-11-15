@@ -1,6 +1,7 @@
 import { MAX_DT_MS } from '../core/config';
 import { createRng } from '../core/rng';
 import { deserialize, exportFileName, loadGame, saveGame, serialize, SAVE_KEY } from '../core/save';
+import { createInitialState } from '../core/state';
 import { tick } from '../core/tick';
 import type { ActionResult, Ctx, GameEvent, GameState } from '../core/types';
 
@@ -102,6 +103,14 @@ export class GameController {
     this.save();
     this.notify();
     return true;
+  }
+
+  /** Parent-menu "new game": fresh state, rng reseeded from the same seed, saved at once. */
+  reset(seed: number): void {
+    this.state = createInitialState(seed);
+    this.ctx = { rng: createRng(seed), events: [] };
+    this.save();
+    this.notify();
   }
 
   dispose(): void {

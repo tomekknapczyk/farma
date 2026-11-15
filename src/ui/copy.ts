@@ -55,6 +55,17 @@ export const T = {
   times: (n: number) => `×${n}`,
   freeSeeds: (n: number) => `×${n} gratis`,
   closeMark: '✕',
+  parent: {
+    title: 'Menu rodzica',
+    save: 'Zapisz kopię',
+    load: 'Wczytaj kopię',
+    newGame: 'Nowa gra',
+    loaded: 'Wczytano',
+    badFile: 'Zły plik',
+    sure: 'Na pewno?',
+    yesNew: 'Tak, nowa gra',
+    levelUp: '+Poziom',
+  },
   where: 'Gdzie?',
   placeHere: 'Stuknij na mapie',
 
