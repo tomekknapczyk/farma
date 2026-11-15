@@ -18,58 +18,17 @@
  *   y gold  A ochre  O olive dark (wheat)    r red  R light red (roof, comb)
  *   o orange (beak, legs)  k black (eyes)    u L C blues (water glints)
  */
-import { PALETTE } from '../palette';
 import type { PixelSprite } from '../pixelmap';
-
-type Grid = string[][];
-
-const grid = (w: number, h: number): Grid => Array.from({ length: h }, () => new Array<string>(w).fill('.'));
-
-function put(g: Grid, x: number, y: number, ch: string): void {
-  if (y >= 0 && y < g.length && x >= 0 && x < g[0].length) g[y][x] = ch;
-}
-
-const get = (g: Grid, x: number, y: number): string =>
-  y >= 0 && y < g.length && x >= 0 && x < g[0].length ? g[y][x] : '.';
-
-const sprite = (key: string, g: Grid): PixelSprite => ({ key, palette: PALETTE, rows: g.map((r) => r.join('')) });
-
-/** Hand-drawn rows; rows shorter than `w` are right-padded with '.'. */
-function rows(key: string, w: number, src: string[], recolor: Record<string, string> = {}): PixelSprite {
-  return { key, palette: PALETTE, rows: src.map((r) => [...r.padEnd(w, '.')].map((ch) => recolor[ch] ?? ch).join('')) };
-}
-
-/** Paste a small hand-drawn stamp with its bottom-centre pixel at (cx, by); '.' is transparent. */
-function stamp(g: Grid, cx: number, by: number, src: string[]): void {
-  const w = Math.max(...src.map((r) => r.length));
-  const x0 = cx - Math.floor(w / 2);
-  const y0 = by - src.length + 1;
-  src.forEach((row, dy) => {
-    for (let dx = 0; dx < row.length; dx++) if (row[dx] !== '.') put(g, x0 + dx, y0 + dy, row[dx]);
-  });
-}
-
-/** Snow cap: the topmost opaque pixel of every column becomes `top`, the one below `under`. */
-function snowCap(src: string[], top = 'w', under = 'P', skip = ''): string[] {
-  const out = src.map((r) => [...r]);
-  const w = Math.max(...src.map((r) => r.length));
-  for (let x = 0; x < w; x++) {
-    const y = out.findIndex((r) => r[x] !== undefined && r[x] !== '.' && !skip.includes(r[x]));
-    if (y < 0) continue;
-    out[y][x] = top;
-    if (under && out[y + 1]?.[x] !== undefined && out[y + 1][x] !== '.') out[y + 1][x] = under;
-  }
-  return out.map((r) => r.join(''));
-}
+import { get, grid, inPoly, put, rows, snowCap, sprite, stamp, type Grid } from './kit';
 
 // ---------------------------------------------------------------------------------------------
 // Ground tiles 32x16
 // ---------------------------------------------------------------------------------------------
 
-type Edge = 'tl' | 'tr' | 'bl' | 'br' | null;
+export type Edge = 'tl' | 'tr' | 'bl' | 'br' | null;
 
 /** 32x16 diamond; `fill` gets the pixel and its edge band (2 px wide, as iso lines step 2 px). */
-function diamond(key: string, fill: (x: number, y: number, edge: Edge) => string, extra?: (g: Grid) => void): PixelSprite {
+export function diamond(key: string, fill: (x: number, y: number, edge: Edge) => string, extra?: (g: Grid) => void): PixelSprite {
   const g = grid(32, 16);
   for (let y = 0; y < 16; y++) {
     const hw = y < 8 ? (y + 1) * 2 : (16 - y) * 2;
@@ -92,7 +51,7 @@ const inDiamond = (x: number, y: number): boolean => {
 };
 
 /** Small detail stamps placed by top-left corner, clipped to the inside of the diamond. */
-function details(g: Grid, list: [number, number, string[]][]): void {
+export function details(g: Grid, list: [number, number, string[]][]): void {
   for (const [x0, y0, src] of list) {
     src.forEach((row, dy) => {
       for (let dx = 0; dx < row.length; dx++) {
@@ -212,7 +171,7 @@ const WHEAT_STAGES: string[][] = [
 ];
 
 // 3x3 grid of clumps inside the tile, back to front
-const CLUMPS: [number, number][] = [];
+export const CLUMPS: [number, number][] = [];
 for (let s = 0; s <= 4; s++) {
   for (let i = 0; i <= 2; i++) {
     const j = s - i;
@@ -243,23 +202,6 @@ const WALL_H = 11;
 const GABLE_H = 12;
 const lowerL = (x: number): number => 32 + Math.floor((x - 4) / 2); // left wall bottom, x 4..31
 const lowerR = (x: number): number => 46 - Math.floor((x - 32) / 2); // right wall bottom, x 32..60
-
-function edgeSide(px: number, py: number, ax: number, ay: number, bx: number, by: number): number {
-  return (bx - ax) * (py - ay) - (by - ay) * (px - ax);
-}
-/** Pixel centre inside a convex polygon. */
-function inPoly(px: number, py: number, pts: [number, number][]): boolean {
-  let pos = false;
-  let neg = false;
-  for (let i = 0; i < pts.length; i++) {
-    const [ax, ay] = pts[i];
-    const [bx, by] = pts[(i + 1) % pts.length];
-    const d = edgeSide(px + 0.5, py + 0.5, ax, ay, bx, by);
-    if (d > 0) pos = true;
-    if (d < 0) neg = true;
-  }
-  return !(pos && neg);
-}
 
 interface RoofLook { face: string; line: string; ridge: string; trim: string; outline: string }
 const ROOF: RoofLook = { face: 'R', line: 'r', ridge: 's', trim: 'r', outline: 'p' };
@@ -397,11 +339,12 @@ function buildingSprites(): PixelSprite[] {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Animals 16x16, facing left (the scene flips them when walking right)
+// Animals 16x16, facing left (the scene flips them when walking right). The pony moved to round 2
+// (bigger horses, 24x20).
 // ---------------------------------------------------------------------------------------------
 
 // white hen: grey outline, pale-blue shading, red comb, orange beak and legs
-const CHICKEN = [
+export const CHICKEN = [
   '................',
   '................',
   '................',
@@ -421,7 +364,7 @@ const CHICKEN = [
 ];
 
 // chick: round yellow fluff, ochre outline
-const CHICK = [
+export const CHICK = [
   '................',
   '................',
   '................',
@@ -440,66 +383,10 @@ const CHICK = [
   '.......o..o.....',
 ];
 
-// pony: brown coat (b) lit on the back (t), cream mane and tail (s/t), white blaze, plum outline
-const PONY = [
-  '...pp...........',
-  '..pbbp..........',
-  '.pbkbsp.........',
-  'pbbbbssp........',
-  'pwbbbbssp.......',
-  'psbpbbbbsp......',
-  '.pp.pbbbbstppp..',
-  '.....pbttttttps.',
-  '.....pbbbbbbbpts',
-  '.....pbbbbbbbbts',
-  '.....pBbbbbbbBpt',
-  '.....pBBBBBBBBpt',
-  '.....pbBp.pBbp.s',
-  '.....pbBp.pBbp..',
-  '.....pbBp.pBbp..',
-  '.....nnn..nnn...',
-];
-
-// foal: smaller, long legs, short fuzzy mane
-const FOAL = [
-  '................',
-  '................',
-  '................',
-  '................',
-  '....pp..........',
-  '...pbbp.........',
-  '..pbkbsp........',
-  '.pwbbbsp........',
-  '.psbpbbbppppp...',
-  '..p..pbttttbsp..',
-  '.....pbbbbbbbs..',
-  '.....pBBBBBBp...',
-  '.....pbp..pbp...',
-  '.....pbp..pbp...',
-  '.....pbp..pbp...',
-  '.....nn...nn....',
-];
-
-// winter: the pony wears a red blanket (r, lit top R) with a sand trim at the bottom
-function blanket(src: string[], top: number, bottom: number, x0: number, x1: number): string[] {
-  const out = src.map((r) => [...r.padEnd(16, '.')]);
-  for (let y = top; y <= bottom; y++) {
-    for (let x = x0; x <= x1; x++) {
-      const ch = out[y][x];
-      if (ch === 'b' || ch === 't' || ch === 'B') out[y][x] = y === bottom ? 's' : y === top ? 'R' : 'r';
-    }
-  }
-  return out.map((r) => r.join(''));
-}
-
 function animalSprites(): PixelSprite[] {
   return [
     rows('chicken', 16, CHICKEN),
     rows('chicken-young', 16, CHICK),
-    rows('horse-pony', 16, PONY),
-    rows('foal-pony', 16, FOAL),
-    rows('horse-pony@winter', 16, blanket(PONY, 7, 10, 6, 12)),
-    rows('foal-pony@winter', 16, blanket(FOAL, 9, 10, 7, 11)),
   ];
 }
 
@@ -507,7 +394,7 @@ function animalSprites(): PixelSprite[] {
 // Tree 24x27 (taller than the placeholder; placed with origin (0.5, 1))
 // ---------------------------------------------------------------------------------------------
 
-const TREE = [
+export const TREE = [
   '........cccccccc........',
   '......ccGGGGgggDcc......',
   '.....cGGGGggggggDDc.....',
@@ -540,7 +427,7 @@ const TREE = [
 const CROWN_ROWS = 16; // rows 0..15 are the crown
 
 /** Winter tree: same crown, a thick snow cap on its top and small snow piles on the lit clusters. */
-function treeWinter(src: string[]): string[] {
+export function treeWinter(src: string[]): string[] {
   const out = src.map((r) => [...r]);
   const leaf = (ch: string | undefined) => ch === 'G' || ch === 'g' || ch === 'D';
   for (let x = 0; x < 24; x++) {
@@ -561,7 +448,7 @@ function treeWinter(src: string[]): string[] {
 }
 
 function treeSprites(): PixelSprite[] {
-  return [rows('tree', 24, TREE), rows('tree@winter', 24, treeWinter(TREE))];
+  return [rows('tree', 24, TREE)]; // tree@winter (frosted crown built on treeWinter) is in round 2
 }
 
 // ---------------------------------------------------------------------------------------------

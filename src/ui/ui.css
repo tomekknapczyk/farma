@@ -221,18 +221,18 @@ html, body {
 
 .herd { display: flex; flex-wrap: wrap; gap: 8px; }
 .btn.animal { width: 72px; height: 72px; }
-.btn.animal .btn-icon { width: 48px; height: 48px; }
+.btn.animal .btn-icon { width: 48px; height: 48px; object-fit: contain; }
 .status-badge { position: absolute; top: -8px; right: -8px; width: 30px; height: 30px; }
 
 .animal-hero { position: relative; display: flex; justify-content: center; }
-.hero { width: 128px; height: 128px; }
+.hero { width: 128px; height: 128px; object-fit: contain; }
 .hero-status { position: absolute; top: 0; left: calc(50% + 48px); width: 48px; height: 48px; }
 .actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
 .actions .btn { min-width: 104px; min-height: 96px; }
 .btn.wide-btn { flex-direction: row; gap: 10px; font-size: 20px; }
 
 .collection { display: flex; gap: 12px; justify-content: center; padding: 6px; background: var(--white); border: 3px solid var(--night); border-radius: 12px; }
-.breed { width: 64px; height: 64px; }
+.breed { width: 64px; height: 64px; object-fit: contain; }
 .breed.silhouette { filter: brightness(0); opacity: 0.25; }
 
 /* ---------- toasts ---------- */

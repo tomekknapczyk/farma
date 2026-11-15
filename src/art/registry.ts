@@ -4,6 +4,7 @@ import { drawSpriteToCanvas } from './pixelmap';
 import type { PixelSprite } from './pixelmap';
 import { PLACEHOLDERS } from './sprites/placeholders';
 import { ROUND1 } from './sprites/round1';
+import { ROUND2 } from './sprites/round2';
 
 const CROPS = ['wheat', 'carrot', 'corn', 'pumpkin'];
 const BREEDS = ['pony', 'arabian', 'friesian'];
@@ -27,6 +28,7 @@ export const TEXTURE_KEYS: readonly string[] = [
 export const SPRITES: Record<string, PixelSprite> = {
   ...PLACEHOLDERS,
   ...Object.fromEntries(ROUND1.map((sp) => [sp.key, sp])),
+  ...Object.fromEntries(ROUND2.map((sp) => [sp.key, sp])),
 };
 
 /** Every key that has art: all sprites (incl. seasonal `key@season` variants) plus manifest PNGs. */
@@ -43,6 +45,11 @@ const MANIFEST_KEY = 'art-manifest';
  * Plan B hook: `public/art/manifest.json` lists keys that have a PNG in `public/art/<key>.png`.
  * Call from `preload()`. Listed PNGs are queued and later win over the pixel-map placeholders.
  * A missing or broken manifest/PNG is ignored silently.
+ *
+ * A PNG pack must also list the seasonal keys (`tree@winter`, `bld-barn@winter`, ...) for every
+ * object it replaces: `textureFor` prefers `key@season` whenever any art for it exists, so a PNG
+ * `tree` without a PNG `tree@winter` would show the pixel-map winter tree in winter.
+ * See README, "Grafika (plan B)".
  */
 export function preloadArt(scene: Phaser.Scene): void {
   scene.load.on('loaderror', () => { /* missing optional art: placeholders are used */ });

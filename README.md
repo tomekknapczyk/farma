@@ -26,3 +26,9 @@ Uwaga: service worker (praca offline) wymaga HTTPS albo localhost. Przez zwykłe
 Przytrzymaj licznik monet przez 3 sekundy (pod koniec widać zielony pasek). Menu: „Zapisz kopię” (pobiera plik JSON), „Wczytaj kopię”, „Nowa gra” (dwa potwierdzenia).
 
 Ikony PWA: `node scripts/make-icons.mjs`.
+
+## Grafika (plan B)
+
+Grafika jest rysowana w kodzie jako pixel-mapy (`src/art/sprites/`). Gotową paczkę PNG można podłożyć bez zmian w kodzie: plik `public/art/<klucz>.png` plus klucz na liście w `public/art/manifest.json` (np. `["tree", "tree@winter"]`). Klucze są w `TEXTURE_KEYS` w `src/art/registry.ts`.
+
+Ważne: paczka musi zawierać także warianty sezonowe (`@winter`, `@autumn`) każdego podmienianego obiektu, który je ma w pixel-mapach. Gra wybiera `klucz@pora` zawsze, gdy istnieje jakakolwiek grafika dla tego klucza, więc PNG `tree` bez PNG `tree@winter` pokaże zimą stare, rysowane drzewo.

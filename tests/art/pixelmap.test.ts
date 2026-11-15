@@ -4,6 +4,7 @@ import { PLACEHOLDERS } from '../../src/art/sprites/placeholders';
 import { SPRITES, TEXTURE_KEYS, textureFor } from '../../src/art/registry';
 import { PALETTE } from '../../src/art/palette';
 import { ROUND1 } from '../../src/art/sprites/round1';
+import { ROUND2 } from '../../src/art/sprites/round2';
 
 describe('validateSprite', () => {
   it('reports rows of different length', () => {
@@ -56,12 +57,25 @@ describe('placeholders', () => {
   });
 });
 
-describe('round 1 art', () => {
+/**
+ * Deliberate size changes against the placeholders. All are bottom-anchored (origin 0.5, 1) and
+ * picked by their actual width/height, so farmView needs no per-key maths:
+ * - tree: taller round-1 crown;
+ * - horses and foals: bigger so they read at zoom 2 (parent's request, round 2); the status icon
+ *   follows the sprite height.
+ */
+const SIZE_OVERRIDES: [RegExp, [number, number]][] = [
+  [/^tree$/, [24, 27]],
+  [/^horse-/, [24, 20]],
+  [/^foal-/, [20, 18]],
+];
+
+describe.each([['round 1', ROUND1], ['round 2', ROUND2]] as const)('%s art', (_name, ART) => {
   const size = (sp: { rows: string[] }) => [sp.rows[0].length, sp.rows.length];
 
   it('every sprite is valid, overrides a known key and uses only palette colours', () => {
     const colours = new Set<string>(Object.values(PALETTE));
-    for (const sp of ROUND1) {
+    for (const sp of ART) {
       expect(validateSprite(sp), sp.key).toEqual([]);
       expect(TEXTURE_KEYS, sp.key).toContain(sp.key.split('@')[0]);
       for (const row of sp.rows) {
@@ -70,25 +84,47 @@ describe('round 1 art', () => {
     }
   });
 
-  it('keeps the placeholder sizes (the tree may be taller, it is bottom-anchored)', () => {
-    for (const sp of ROUND1) {
+  it('keeps the placeholder sizes, except the documented overrides', () => {
+    for (const sp of ART) {
       const base = sp.key.split('@')[0];
-      if (base === 'tree') continue;
-      expect(size(sp), sp.key).toEqual(size(PLACEHOLDERS[base]));
+      const override = SIZE_OVERRIDES.find(([re]) => re.test(base));
+      if (override) { expect(size(sp), sp.key).toEqual(override[1]); continue; }
+      const ph = PLACEHOLDERS[base];
+      expect(ph, `${sp.key}: no placeholder to compare with; add a SIZE_OVERRIDES entry`).toBeDefined();
+      expect(size(sp), sp.key).toEqual(size(ph));
     }
   });
 
   it('seasonal variants match their base size', () => {
-    for (const sp of ROUND1.filter((s) => s.key.includes('@'))) {
+    for (const sp of ART.filter((s) => s.key.includes('@'))) {
       expect(size(sp), sp.key).toEqual(size(SPRITES[sp.key.split('@')[0]]));
     }
   });
 
-  it('is what the registry serves, with winter variants', () => {
-    for (const sp of ROUND1) expect(SPRITES[sp.key]).toBe(sp);
+  it('is what the registry serves (unless a later round overrides it)', () => {
+    const later = new Set(ART === ROUND1 ? ROUND2.map((sp) => sp.key) : []);
+    for (const sp of ART) if (!later.has(sp.key)) expect(SPRITES[sp.key]).toBe(sp);
+  });
+});
+
+describe('registry after round 2', () => {
+  it('serves art for every key and winter variants for outdoor objects', () => {
     for (const key of TEXTURE_KEYS) expect(SPRITES[key], key).toBeDefined();
     expect(textureFor('crop-wheat-3', 'winter')).toBe('crop-wheat-3@winter');
     expect(textureFor('horse-pony', 'winter')).toBe('horse-pony@winter');
     expect(textureFor('bld-coop', 'winter')).toBe('bld-coop@winter');
+    const outdoor = [
+      'tile-grass', 'tile-locked', 'field-dry', 'field-wet', 'bld-coop', 'bld-barn', 'bld-stable',
+      'trough-empty', 'trough-low', 'trough-full', 'chicken', 'chicken-young', 'cow', 'cow-young', 'tree',
+      ...['wheat', 'carrot', 'corn', 'pumpkin'].flatMap((c) => [0, 1, 2, 3].map((n) => `crop-${c}-${n}`)),
+      ...['pony', 'arabian', 'friesian'].flatMap((b) => [`horse-${b}`, `foal-${b}`]),
+    ];
+    for (const key of outdoor) expect(textureFor(key, 'winter'), key).toBe(`${key}@winter`);
+  });
+
+  it('no placeholder art is left: every placeholder key is overridden by a real art round', () => {
+    const real = new Set([...ROUND1, ...ROUND2].map((sp) => sp.key));
+    const left = Object.keys(PLACEHOLDERS).filter((k) => !real.has(k));
+    expect(left).toEqual([]);
   });
 });
