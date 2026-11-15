@@ -96,3 +96,27 @@ describe('live() scroll', () => {
     expect(outer.scrollTop).toBe(40);
   });
 });
+
+describe('live() focused input', () => {
+  afterEach(() => { document.body.replaceChildren(); });
+
+  it('does not replace a focused input inside the target; catches up after blur', async () => {
+    let notify: () => void = () => {};
+    let value = 'a';
+    const target = document.createElement('div');
+    document.body.append(target);
+    const render = vi.fn((into: HTMLElement) => { into.append(document.createElement('input')); });
+    live((fn) => { notify = fn; return () => {}; }, () => value, target, render);
+    const input = target.querySelector('input') as HTMLInputElement;
+    input.focus();
+    input.value = '12';
+    value = 'b';
+    notify();
+    expect(render).toHaveBeenCalledTimes(1);
+    expect(target.querySelector('input')).toBe(input);
+    expect(input.value).toBe('12');
+    input.blur();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(render).toHaveBeenCalledTimes(2);
+  });
+});

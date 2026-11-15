@@ -24,6 +24,12 @@ type Choice =
   | { kind: 'upgrade' };
 
 const ITEMS: ItemId[] = ['wheat', 'carrot', 'corn', 'pumpkin', 'egg', 'milk'];
+
+/** Sell amount from a typed field or a step: digits only, empty -> 0, clamped to 0..max. */
+export function clampQty(raw: string | number, max: number): number {
+  const n = typeof raw === 'number' ? raw : Number(raw.replace(/\D/g, '') || 0);
+  return Math.max(0, Math.min(Math.floor(n), max));
+}
 let lastTab: ShopTab = 'buy';
 
 /** Opens on `startTab` when given (storage bar -> sell), else on the last used tab. */
@@ -144,21 +150,66 @@ export function openShop(controller: GameController, scene: FarmScene, startTab?
     const s = controller.state;
     const have = ITEMS.filter((i) => s.storage[i] > 0);
     if (have.length === 0) { into.append(el('div', 'empty', T.empty)); return; }
-    for (const item of have) {
-      const unit = item in CROPS ? CROPS[item as keyof typeof CROPS].price : PRODUCTS[item as keyof typeof PRODUCTS].price;
-      const sellN = (n: number) => {
+    for (const item of have) into.append(sellRow(item));
+  };
+
+  // chosen amounts outlive re-renders of the list
+  const qty: Partial<Record<ItemId, number>> = {};
+  const sellRow = (item: ItemId): HTMLElement => {
+    const unit = item in CROPS ? CROPS[item as keyof typeof CROPS].price : PRODUCTS[item as keyof typeof PRODUCTS].price;
+    const stock = () => controller.state.storage[item];
+    const count = el('span', 'row-count');
+    const input = el('input', 'qty');
+    input.type = 'text';
+    input.inputMode = 'numeric';
+    input.pattern = '[0-9]*';
+    input.autocomplete = 'off';
+    input.setAttribute('aria-label', T.qty);
+    const set = (n: number) => { qty[item] = clampQty(n, stock()); update(); };
+    const step = (label: string, cls: string, d: () => number) => btn({ label, cls: `small ${cls}`, onTap: () => set(d()) });
+    const minus = step(T.minus1, 'q-minus', () => (qty[item] ?? 0) - 1);
+    const plus1 = step(T.plus1, 'q-plus1', () => (qty[item] ?? 0) + 1);
+    const plus10 = step(T.plus10, 'q-plus10', () => (qty[item] ?? 0) + 10);
+    const all = step(T.all, 'q-all', stock);
+    const go = btn({
+      cls: 'sell-go',
+      onTap: () => {
+        const n = clampQty(qty[item] ?? 0, stock());
+        if (n === 0) return;
+        input.blur(); // let the list re-render after the sale
+        qty[item] = 0;
         const r = controller.act(sell, item, n);
         if (report(r) && r.ok) showToast(T.plus(r.n ?? 0), 'good');
-      };
-      into.append(el('div', 'row',
-        icon(itemIcon(item), 'row-icon'),
-        el('span', 'row-count', T.times(s.storage[item])),
-        price(unit),
-        el('span', 'spacer'),
-        btn({ label: T.one, cls: 'small', onTap: () => sellN(1) }),
-        btn({ label: T.all, cls: 'small', onTap: () => sellN(controller.state.storage[item]) }),
-      ));
-    }
+        update();
+      },
+    });
+    const goLabel = el('span', 'btn-label');
+    go.append(goLabel, icon('icon-coin', 'coin-sm'));
+    const update = (keepTyped = false) => {
+      const max = stock();
+      const n = clampQty(qty[item] ?? 0, max);
+      qty[item] = n;
+      count.textContent = T.times(max);
+      if (!keepTyped) input.value = String(n);
+      minus.classList.toggle('disabled', n <= 0);
+      plus1.classList.toggle('disabled', n >= max);
+      plus10.classList.toggle('disabled', n >= max);
+      go.classList.toggle('disabled', n === 0);
+      goLabel.textContent = T.sellFor(n, n * unit);
+    };
+    input.addEventListener('input', () => {
+      const n = clampQty(input.value, stock());
+      qty[item] = n;
+      // an emptied field stays empty while typing; anything else shows the clamped number
+      update(input.value === '' || input.value === String(n));
+    });
+    input.addEventListener('blur', () => update());
+    input.addEventListener('focus', () => input.select());
+    update();
+    return el('div', 'sell-row',
+      el('div', 'row', icon(itemIcon(item), 'row-icon'), count, price(unit), el('span', 'spacer'), go),
+      el('div', 'qty-row', minus, input, plus1, plus10, all),
+    );
   };
 
   const key = () => {

@@ -239,6 +239,17 @@ html, body {
 .row-icon { width: 48px; height: 40px; object-fit: contain; }
 .row-icon.wide { width: 64px; height: 32px; }
 .row-count { min-width: 3ch; }
+/* sell tab: amount picker per item */
+.sell-row .row { flex-wrap: wrap; }
+.sell-row { display: flex; flex-direction: column; gap: 6px; padding: 8px; background: var(--white); border: 3px solid var(--night); border-radius: 12px; }
+.qty-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+input.qty {
+  width: 84px; height: 52px; box-sizing: border-box; text-align: center; font: inherit; font-size: 24px;
+  border: 4px solid var(--night); border-radius: 10px; background: var(--sand); color: var(--night);
+  pointer-events: auto; touch-action: manipulation;
+}
+.btn.sell-go { flex-direction: row; gap: 6px; font-size: 20px; padding-left: 14px; padding-right: 14px; min-height: 52px; }
+.btn.sell-go:not(.disabled) { background: var(--green); color: var(--white); box-shadow: inset 0 -4px 0 var(--green-d); }
 .empty { font-size: 24px; text-align: center; padding: 24px; color: var(--brown); }
 .section-head { display: flex; align-items: center; gap: 8px; font-size: 22px; }
 

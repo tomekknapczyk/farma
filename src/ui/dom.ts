@@ -96,7 +96,8 @@ export const CLICK_WAIT_MS = 400;
  * A re-render is never done while a press on `target` is in progress: it is deferred until that
  * press's `click` has been dispatched (iOS fires the synthetic click asynchronously after touchend,
  * so catching up on pointerup would remove the tapped node first), or CLICK_WAIT_MS after release
- * if no click arrives. `refresh()` re-renders now (after local UI state changed); `stop()` cleans up.
+ * if no click arrives. Likewise no re-render replaces a focused input inside `target` (the child is typing):
+ * it catches up after the input loses focus. `refresh()` re-renders now (after local UI state changed); `stop()` cleans up.
  */
 export function live(
   sub: (fn: () => void) => () => void, key: () => string, target: HTMLElement, render: (into: HTMLElement) => void,
@@ -116,12 +117,17 @@ export function live(
     render(target);
     for (const [e, top] of scrolled) e.scrollTop = top;
   };
+  const typing = () => {
+    const a = document.activeElement;
+    return a instanceof HTMLInputElement && target.contains(a);
+  };
   const run = () => {
     const k = key();
     if (k === last) return;
-    if (pressed) { pending = true; return; }
+    if (pressed || typing()) { pending = true; return; }
     draw(k);
   };
+  const blurred = () => { if (pending) setTimeout(run, 0); }; // focus has moved on by then
   const release = () => {
     if (!pressed) return;
     pressed = false;
@@ -137,6 +143,7 @@ export function live(
   };
   target.addEventListener('pointerdown', down);
   target.addEventListener('click', release, true); // capture: before buttons stop propagation
+  target.addEventListener('focusout', blurred);
   window.addEventListener('pointerup', up);
   window.addEventListener('pointercancel', up);
   draw(key());
@@ -146,6 +153,7 @@ export function live(
     if (timer !== null) clearTimeout(timer);
     target.removeEventListener('pointerdown', down);
     target.removeEventListener('click', release, true);
+    target.removeEventListener('focusout', blurred);
     window.removeEventListener('pointerup', up);
     window.removeEventListener('pointercancel', up);
   };
