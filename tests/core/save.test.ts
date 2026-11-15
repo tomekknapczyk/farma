@@ -118,6 +118,7 @@ describe('deserialize: enum and reference checks', () => {
     ['unknown owned breed', (o: any) => { o.ownedBreeds = ['zebra']; }],
     ['non-finite storage (null from Infinity)', (o: any) => { o.storage.egg = null; }],
     ['level out of range', (o: any) => { o.level = 0; }],
+    ['duplicate ids', (o: any) => { o.buildings[1].id = o.buildings[0].id; o.animals[1].buildingId = o.buildings[0].id; }],
   ])('rejects %s', (_name, fn) => {
     expect(deserialize(broken(fn))).toBeNull();
   });

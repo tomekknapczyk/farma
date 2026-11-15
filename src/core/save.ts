@@ -56,6 +56,8 @@ export function deserialize(json: string): GameState | null {
   if (!Array.isArray(o.fields) || !Array.isArray(o.buildings) || !Array.isArray(o.animals)) return null;
   if (!o.fields.every(validField) || !o.buildings.every(validBuilding)) return null;
   const buildingIds = new Set(o.buildings.map((b) => (b as { id: string }).id));
+  const ids = [...o.fields, ...o.buildings, ...o.animals].map((v) => (v as { id: string }).id);
+  if (new Set(ids).size !== ids.length) return null; // views and actions find objects by id
   if (!o.animals.every((a) => validAnimal(a, buildingIds))) return null;
   if (!isObj(o.weather) || !oneOf(o.weather.kind, WEATHER_KINDS) || !isNum(o.weather.untilMs)) return null;
   if (!isBool(o.hasTractor) || !Array.isArray(o.ownedBreeds) || !o.ownedBreeds.every((b) => oneOf(b, BREED_IDS))
