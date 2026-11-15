@@ -184,7 +184,7 @@ describe('GameController.exportSave', () => {
     vi.unstubAllGlobals();
   });
   const stubShare = (share: () => Promise<void>, canShare = true) => {
-    vi.stubGlobal('navigator', { ...navigator, canShare: vi.fn(() => canShare), share: vi.fn(share) });
+    vi.stubGlobal('navigator', { ...navigator, maxTouchPoints: 5, canShare: vi.fn(() => canShare), share: vi.fn(share) });
     return navigator as unknown as { share: ReturnType<typeof vi.fn> };
   };
 
@@ -232,6 +232,15 @@ describe('GameController.exportSave', () => {
 
   it('canShare false: download', async () => {
     const nav = stubShare(async () => {}, false);
+    const c = new GameController(fakeStore(), opts());
+    expect(await c.exportSave()).toBe('downloaded');
+    expect(nav.share).not.toHaveBeenCalled();
+    c.dispose();
+  });
+
+  it('desktop (no touch) downloads even when files could be shared', async () => {
+    const nav = stubShare(async () => {});
+    (nav as unknown as { maxTouchPoints: number }).maxTouchPoints = 0;
     const c = new GameController(fakeStore(), opts());
     expect(await c.exportSave()).toBe('downloaded');
     expect(nav.share).not.toHaveBeenCalled();

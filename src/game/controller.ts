@@ -91,8 +91,9 @@ export class GameController {
   }
 
   /**
-   * Backup file. Where the Web Share API takes files (iPad Safari) the share sheet opens ("Zapisz w
-   * Plikach"); share() is called synchronously so the tap's user activation still counts. Otherwise an
+   * Backup file. On touch devices where the Web Share API takes files (iPad Safari) the share sheet opens
+   * ("Zapisz w Plikach"); share() is called synchronously so the tap's user activation still counts.
+   * Desktop browsers (no touch) download instead: their share sheet has no plain "save". Otherwise an
    * anchor download, with the blob URL kept alive for REVOKE_MS (revoking at once breaks Safari).
    */
   async exportSave(): Promise<ExportResult> {
@@ -101,7 +102,8 @@ export class GameController {
     try {
       const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean };
       const file = typeof File === 'function' ? new File([json], name, { type: 'application/json' }) : null;
-      if (file && typeof nav.share === 'function' && nav.canShare?.({ files: [file] })) {
+      const touch = (nav.maxTouchPoints ?? 0) > 0;
+      if (file && touch && typeof nav.share === 'function' && nav.canShare?.({ files: [file] })) {
         try {
           await nav.share({ files: [file], title: 'Farma' });
           return 'shared';
