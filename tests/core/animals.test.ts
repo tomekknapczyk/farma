@@ -28,10 +28,10 @@ describe('buildings', () => {
     expect(s.buildings[0]).toMatchObject({ kind: 'coop', trough: 0, upgraded: false });
     expectUnchanged(s, () => buildBuilding(s, ctx(), 'coop', 1, 1), 'occupied');
   });
-  it('locked at level 2, no-money', () => {
-    const s = newTestState({ level: 2, coins: 100, parcels: new Array(16).fill(true) });
+  it('locked at level 1, no-money', () => {
+    const s = newTestState({ level: 1, coins: 100, parcels: new Array(16).fill(true) });
     expectUnchanged(s, () => buildBuilding(s, ctx(), 'coop', 0, 0), 'locked');
-    const p = newTestState({ level: 3, coins: 10, parcels: new Array(16).fill(true) });
+    const p = newTestState({ level: 2, coins: 10, parcels: new Array(16).fill(true) });
     expectUnchanged(p, () => buildBuilding(p, ctx(), 'coop', 0, 0), 'no-money');
   });
   it('upgrade at level 9 once', () => {
@@ -63,11 +63,22 @@ describe('animals', () => {
     expect(s.buildings[0].trough).toBe(10);
     expectUnchanged(s, () => fillTrough(s, ctx(), id, 'wheat', 2), 'full');
   });
-  it('fed chicken produces after 40s', () => {
+  it('fillTrough grants XP.feed once per successful call, none when rejected', () => {
+    const { s, id } = coopState(0);
+    s.storage.wheat = 12;
+    const xp = s.xp;
+    expect(fillTrough(s, ctx(), id, 'wheat', 5)).toEqual({ ok: true, n: 5 });
+    expect(s.xp).toBe(xp + 1);
+    expect(fillTrough(s, ctx(), id, 'wheat', 7)).toEqual({ ok: true, n: 5 });
+    expect(s.xp).toBe(xp + 2);
+    expectUnchanged(s, () => fillTrough(s, ctx(), id, 'wheat', 2), 'full');
+    expect(s.xp).toBe(xp + 2);
+  });
+  it('fed chicken produces after 90s', () => {
     const { s, id } = coopState(1);
     s.storage.wheat = 10;
     fillTrough(s, ctx(), id, 'wheat', 10);
-    run(s, ctx(), 40000);
+    run(s, ctx(), 90000);
     expect(s.animals[0].productReady).toBe(true);
     expect(s.buildings[0].trough).toBe(9);
     expect(animalStatus(s.animals[0])).toBe('ready');
@@ -82,7 +93,7 @@ describe('animals', () => {
     const { s, id } = coopState(1);
     s.storage.wheat = 10;
     fillTrough(s, ctx(), id, 'wheat', 10);
-    run(s, ctx(), 40000);
+    run(s, ctx(), 90000);
     const c = ctx();
     const xp = s.xp;
     expect(collectProduct(s, c, s.animals[0].id)).toEqual({ ok: true });
@@ -96,7 +107,7 @@ describe('animals', () => {
     s.storage.wheat = 10;
     fillTrough(s, ctx(), id, 'wheat', 10);
     const c = ctx([0.01]);
-    run(s, c, 40000);
+    run(s, c, 90000);
     expect(s.animals[0].sick).toBe(true);
     expect(c.events).toContainEqual({ type: 'sick', animalId: s.animals[0].id });
     collectProduct(s, ctx(), s.animals[0].id);
@@ -117,7 +128,7 @@ describe('animals', () => {
     s.storage.wheat = 10;
     fillTrough(s, ctx(), id, 'wheat', 10);
     const c = ctx([0.05]);
-    run(s, c, 40000);
+    run(s, c, 90000);
     const young = s.animals.filter((a) => a.bornOnFarm);
     expect(young.length).toBeGreaterThanOrEqual(1);
     expect(young[0]).toMatchObject({ youngMsLeft: 120000, breed: null, species: 'chicken' });
@@ -131,17 +142,17 @@ describe('animals', () => {
     const { s, id } = coopState(4);
     s.storage.wheat = 10;
     fillTrough(s, ctx(), id, 'wheat', 10);
-    run(s, ctx([0.05]), 40000);
+    run(s, ctx([0.05]), 90000);
     expect(s.animals.length).toBe(4);
   });
   it('no birth with fewer than two healthy adults', () => {
     const { s, id } = coopState(1);
     s.storage.wheat = 10;
     fillTrough(s, ctx(), id, 'wheat', 10);
-    run(s, ctx([0.05]), 40000);
+    run(s, ctx([0.05]), 90000);
     expect(s.animals.length).toBe(1);
   });
-  it('treat speeds cycle to 20s and is consumed', () => {
+  it('treat speeds cycle to 45s and is consumed', () => {
     const { s, id } = coopState(1);
     s.storage.wheat = 10;
     s.storage.carrot = 1;
@@ -149,7 +160,7 @@ describe('animals', () => {
     expect(giveTreat(s, ctx(), s.animals[0].id)).toEqual({ ok: true });
     expect(s.storage.carrot).toBe(0);
     expectUnchanged(s, () => giveTreat(s, ctx(), s.animals[0].id), 'invalid');
-    run(s, ctx(), 20000);
+    run(s, ctx(), 45000);
     expect(s.animals[0].productReady).toBe(true);
     expect(s.animals[0].treat).toBe(false);
   });

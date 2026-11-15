@@ -38,7 +38,7 @@ describe('crops', () => {
     const s = newTestState();
     const c = ctx();
     plant(s, c, 'f1', 'wheat');
-    run(s, c, 29000);
+    run(s, c, 59000);
     expect(isReady(s.fields[0])).toBe(false);
     expectUnchanged(s, () => harvest(s, c, 'f1'), 'not-ready');
     run(s, c, 1000);
@@ -52,11 +52,11 @@ describe('crops', () => {
     plant(s, c, 'f2', 'wheat');
     expect(water(s, c, 'f1')).toEqual({ ok: true });
     expectUnchanged(s, () => water(s, c, 'f1'), 'invalid');
-    run(s, c, 30000);
-    expect(harvest(s, c, 'f1')).toEqual({ ok: true, n: 3 });
-    expect(harvest(s, c, 'f2')).toEqual({ ok: true, n: 1 });
-    expect(s.storage.wheat).toBe(4);
-    expect(c.events.find((e) => e.type === 'gain')).toMatchObject({ x: 5, y: 5, item: 'wheat', qty: 3, xp: 2 });
+    run(s, c, 60000);
+    expect(harvest(s, c, 'f1')).toEqual({ ok: true, n: 6 });
+    expect(harvest(s, c, 'f2')).toEqual({ ok: true, n: 2 });
+    expect(s.storage.wheat).toBe(8);
+    expect(c.events.find((e) => e.type === 'gain')).toMatchObject({ x: 5, y: 5, item: 'wheat', qty: 6, xp: 2 });
     expect(s.fields[0]).toMatchObject({ crop: null, growthMs: 0, watered: false });
     expectUnchanged(s, () => harvest(s, c, 'f1'), 'invalid');
   });
@@ -65,7 +65,7 @@ describe('crops', () => {
     s.weather = { kind: 'heat', untilMs: 1e9 };
     const c = ctx();
     plant(s, c, 'f1', 'wheat');
-    run(s, c, 24000);
+    run(s, c, 49000);
     expect(isReady(s.fields[0])).toBe(false);
     run(s, c, 1000);
     expect(isReady(s.fields[0])).toBe(true);
@@ -97,8 +97,8 @@ describe('crops', () => {
     const f = { id: 'x', x: 0, y: 0, crop: 'wheat' as const, growthMs: 0, watered: false };
     expect(cropStage({ ...f, crop: null })).toBe(0);
     expect(cropStage(f)).toBe(0);
-    expect(cropStage({ ...f, growthMs: 10000 })).toBe(1);
-    expect(cropStage({ ...f, growthMs: 20000 })).toBe(2);
-    expect(cropStage({ ...f, growthMs: 30000 })).toBe(3);
+    expect(cropStage({ ...f, growthMs: 20000 })).toBe(1);
+    expect(cropStage({ ...f, growthMs: 40000 })).toBe(2);
+    expect(cropStage({ ...f, growthMs: 60000 })).toBe(3);
   });
 });

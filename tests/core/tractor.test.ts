@@ -11,18 +11,18 @@ function field(x: number, kind: 'ready' | 'growing' | 'empty', y = 0): Field {
   };
 }
 function tractorState(fields: Field[]) {
-  const s = newTestState({ level: 8, coins: 1000, hasTractor: true });
+  const s = newTestState({ level: 7, coins: 1000, hasTractor: true });
   s.fields = fields;
   return s;
 }
 
 describe('buyTractor', () => {
-  it('locked below level 8', () => {
-    const s = newTestState({ level: 7, coins: 1000 });
+  it('locked below level 7', () => {
+    const s = newTestState({ level: 6, coins: 1000 });
     expectUnchanged(s, () => buyTractor(s, ctx()), 'locked');
   });
-  it('buys at level 8 for 500, gives XP, only once', () => {
-    const s = newTestState({ level: 8, coins: 600 });
+  it('buys at level 7 for 500, gives XP, only once', () => {
+    const s = newTestState({ level: 7, coins: 600 });
     expect(buyTractor(s, ctx())).toEqual({ ok: true });
     expect(s.coins).toBe(100);
     expect(s.hasTractor).toBe(true);
@@ -30,7 +30,7 @@ describe('buyTractor', () => {
     expectUnchanged(s, () => buyTractor(s, ctx()), 'invalid');
   });
   it('no-money', () => {
-    const s = newTestState({ level: 8, coins: 100 });
+    const s = newTestState({ level: 7, coins: 100 });
     expectUnchanged(s, () => buyTractor(s, ctx()), 'no-money');
   });
 });

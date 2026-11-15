@@ -5,17 +5,17 @@ import { tick } from '../../src/core/tick';
 import { ctx, expectUnchanged, newTestState } from '../../src/core/testutil';
 
 describe('xp and levels', () => {
-  it('500 xp -> level 2, one event', () => {
+  it('150 xp -> level 2, one event', () => {
     const s = newTestState({ xp: 0, level: 1 });
     const c = ctx();
-    addXp(s, c, 500);
+    addXp(s, c, 150);
     expect(s.level).toBe(2);
     expect(c.events.filter((e) => e.type === 'levelUp')).toHaveLength(1);
   });
-  it('500+725 xp -> level 3, two events', () => {
+  it('150+522 xp -> level 3, two events', () => {
     const s = newTestState({ xp: 0, level: 1 });
     const c = ctx();
-    addXp(s, c, 1225);
+    addXp(s, c, 672);
     expect(s.level).toBe(3);
     expect(c.events.filter((e) => e.type === 'levelUp')).toHaveLength(2);
   });
@@ -29,8 +29,8 @@ describe('xp and levels', () => {
   });
   it('xpProgress', () => {
     const s = newTestState({ xp: 0, level: 1 });
-    addXp(s, ctx(), 510);
-    expect(xpProgress(s)).toEqual({ level: 2, current: 10, needed: 725 });
+    addXp(s, ctx(), 160);
+    expect(xpProgress(s)).toEqual({ level: 2, current: 10, needed: 522 });
   });
 });
 
@@ -67,23 +67,23 @@ describe('unlocks', () => {
   it('misc', () => {
     expect(isUnlocked(newTestState({ level: 1 }), 'parcels')).toBe(false);
     expect(isUnlocked(newTestState({ level: 2 }), 'parcels')).toBe(true);
-    expect(isUnlocked(newTestState({ level: 8 }), 'tractor')).toBe(true);
+    expect(isUnlocked(newTestState({ level: 7 }), 'tractor')).toBe(true);
     expect(isUnlocked(newTestState({ level: 8 }), 'upgrade')).toBe(false);
     expect(isUnlocked(newTestState({ level: 9 }), 'upgrade')).toBe(true);
-    expect(isUnlocked(newTestState({ level: 7 }), { building: 'stable' })).toBe(true);
-    expect(isUnlocked(newTestState({ level: 4 }), { species: 'cow' })).toBe(false);
+    expect(isUnlocked(newTestState({ level: 5 }), { building: 'stable' })).toBe(true);
+    expect(isUnlocked(newTestState({ level: 2 }), { species: 'cow' })).toBe(false);
     expect(isUnlocked(newTestState({ level: 10 }), { breed: 'friesian' })).toBe(true);
   });
   it('unlocksAt table', () => {
     const t: Record<number, string[]> = {
       1: ['crop:wheat'],
-      2: ['crop:carrot', 'parcels'],
-      3: ['building:coop', 'species:chicken'],
+      2: ['building:coop', 'species:chicken', 'parcels'],
+      3: ['crop:carrot', 'building:barn', 'species:cow'],
       4: ['crop:corn'],
-      5: ['building:barn', 'species:cow'],
+      5: ['building:stable', 'breed:pony'],
       6: ['crop:pumpkin'],
-      7: ['building:stable', 'breed:pony'],
-      8: ['tractor', 'breed:arabian'],
+      7: ['tractor'],
+      8: ['breed:arabian'],
       9: ['upgrade'],
       10: ['breed:friesian'],
     };

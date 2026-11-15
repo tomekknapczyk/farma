@@ -10,10 +10,10 @@ export interface CropDef {
   level: number; seasons: Season[]; growMs: number; seed: number; yield: number; price: number; feed: number;
 }
 export const CROPS: Record<CropId, CropDef> = {
-  wheat: { level: 1, seasons: ['spring', 'summer', 'autumn'], growMs: 30000, seed: 5, yield: 3, price: 4, feed: 1 },
-  carrot: { level: 2, seasons: ['spring', 'summer', 'autumn'], growMs: 45000, seed: 8, yield: 3, price: 6, feed: 1 },
-  corn: { level: 4, seasons: ['summer'], growMs: 75000, seed: 15, yield: 4, price: 9, feed: 2 },
-  pumpkin: { level: 6, seasons: ['summer', 'autumn'], growMs: 120000, seed: 25, yield: 2, price: 30, feed: 0 },
+  wheat: { level: 1, seasons: ['spring', 'summer', 'autumn'], growMs: 60000, seed: 5, yield: 6, price: 4, feed: 1 },
+  carrot: { level: 3, seasons: ['spring', 'summer', 'autumn'], growMs: 90000, seed: 8, yield: 6, price: 6, feed: 1 },
+  corn: { level: 4, seasons: ['summer'], growMs: 150000, seed: 15, yield: 8, price: 9, feed: 2 },
+  pumpkin: { level: 6, seasons: ['summer', 'autumn'], growMs: 240000, seed: 25, yield: 2, price: 60, feed: 0 },
 };
 export const LOW_YIELD_FACTOR = 0.4; // yield = max(1, round(yield * 0.4))
 
@@ -28,23 +28,23 @@ export interface SpeciesDef {
   product: ProductId | null; youngMs: number; vet: number;
 }
 export const SPECIES: Record<SpeciesId, SpeciesDef> = {
-  chicken: { level: 3, cost: 40, building: 'coop', needFeed: 1, cycleMs: 40000, product: 'egg', youngMs: 120000, vet: 15 },
-  cow: { level: 5, cost: 150, building: 'barn', needFeed: 2, cycleMs: 90000, product: 'milk', youngMs: 180000, vet: 40 },
-  horse: { level: 7, cost: null, building: 'stable', needFeed: 2, cycleMs: 120000, product: null, youngMs: 300000, vet: 60 },
+  chicken: { level: 2, cost: 40, building: 'coop', needFeed: 1, cycleMs: 90000, product: 'egg', youngMs: 120000, vet: 15 },
+  cow: { level: 3, cost: 150, building: 'barn', needFeed: 2, cycleMs: 150000, product: 'milk', youngMs: 180000, vet: 40 },
+  horse: { level: 5, cost: null, building: 'stable', needFeed: 2, cycleMs: 120000, product: null, youngMs: 300000, vet: 60 },
 };
 
 export interface BreedDef { level: number; cost: number; sale: number; }
 export const BREEDS: Record<BreedId, BreedDef> = {
-  pony: { level: 7, cost: 300, sale: 250 },
+  pony: { level: 5, cost: 300, sale: 250 },
   arabian: { level: 8, cost: 600, sale: 500 },
   friesian: { level: 10, cost: 1000, sale: 800 },
 };
 
 export interface BuildingDef { level: number; cost: number; cap: number; capUp: number; feeds: CropId[]; }
 export const BUILDINGS: Record<BuildingKind, BuildingDef> = {
-  coop: { level: 3, cost: 60, cap: 4, capUp: 8, feeds: ['wheat'] },
-  barn: { level: 5, cost: 200, cap: 3, capUp: 6, feeds: ['wheat', 'corn'] },
-  stable: { level: 7, cost: 400, cap: 3, capUp: 6, feeds: ['carrot', 'corn'] },
+  coop: { level: 2, cost: 60, cap: 4, capUp: 8, feeds: ['wheat'] },
+  barn: { level: 3, cost: 200, cap: 3, capUp: 6, feeds: ['wheat', 'corn'] },
+  stable: { level: 5, cost: 400, cap: 3, capUp: 6, feeds: ['carrot', 'corn'] },
 };
 export const UPGRADE: { level: number; cost: Record<BuildingKind, number> } = {
   level: 9,
@@ -65,14 +65,15 @@ export function parcelCost(bought: number): number {
   return Math.round(100 * Math.pow(2, bought));
 }
 
-export const TRACTOR = { level: 8, cost: 500, rowLength: 4 };
+export const TRACTOR = { level: 7, cost: 500, rowLength: 4 };
 
-export const XP = { plant: 1, harvest: 2, collect: 2, treat: 1, sellHorse: 10, buy: 5 };
+export const XP = { feed: 1, plant: 1, harvest: 2, collect: 2, treat: 1, sellHorse: 10, buy: 5 };
 export const MAX_LEVEL = 10;
-// tuned by scripts/sim.ts on 2026-11-15 (tap-limited bot, 40 taps/min): base 500, factor 1.45
-// (FIELD_COST 15, parcelCost 100 * 2^n); lvl3 ~22 min, lvl6 ~97 min, lvl10 ~631 min
+// retuned by scripts/sim.ts after the playtest (2026-11-15; tap-limited bot, 40 taps/min). Shape changed from
+// 500 * 1.45^(l-1) to 150 * l^1.8: small first step (level 2 in ~5 min), flatter later steps because the XP rate is
+// tap-capped (~60 xp/min). Bot: lvl2 ~6 min, lvl3 ~15 min, lvl6 ~104 min, lvl10 ~640 min.
 export function xpToNext(level: number): number {
-  return Math.round(500 * Math.pow(1.45, level - 1));
+  return Math.round(150 * Math.pow(level, 1.8));
 }
 
 export const SEASON_MS = 3600000;

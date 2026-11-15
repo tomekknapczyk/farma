@@ -54,7 +54,6 @@ export function buyAnimal(s: GameState, ctx: Ctx, species: 'chicken' | 'cow', bu
 }
 
 export function fillTrough(s: GameState, ctx: Ctx, buildingId: string, item: ItemId, qty: number): ActionResult {
-  void ctx;
   const b = s.buildings.find((v) => v.id === buildingId);
   if (!b || !Number.isInteger(qty) || qty <= 0) return { ok: false, reason: 'invalid' };
   if (!(BUILDINGS[b.kind].feeds as ItemId[]).includes(item)) return { ok: false, reason: 'invalid' };
@@ -64,6 +63,7 @@ export function fillTrough(s: GameState, ctx: Ctx, buildingId: string, item: Ite
   if (k <= 0) return { ok: false, reason: 'full' };
   b.trough += k * feed;
   s.storage[item] -= k;
+  addXp(s, ctx, XP.feed);
   return { ok: true, n: k };
 }
 

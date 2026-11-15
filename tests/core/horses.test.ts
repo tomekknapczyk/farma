@@ -18,10 +18,10 @@ function horse(breed: BreedId, patch: Partial<Animal> = {}): Animal {
 }
 
 describe('buyHorse', () => {
-  it('pony locked at level 6, ok at level 7 for 300', () => {
-    const six = stableState(6, 1000);
+  it('pony locked at level 4, ok at level 5 for 300', () => {
+    const six = stableState(4, 1000);
     expectUnchanged(six.s, () => buyHorse(six.s, ctx(), 'pony', six.id), 'locked');
-    const { s, id } = stableState(7, 300);
+    const { s, id } = stableState(5, 300);
     expect(buyHorse(s, ctx(), 'pony', id)).toEqual({ ok: true });
     expect(s.coins).toBe(0);
     expect(s.ownedBreeds).toEqual(['pony']);
