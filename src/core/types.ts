@@ -32,7 +32,7 @@ export interface GameState {
   lastSeason: Season;                 // for seasonChanged event
 }
 export type Reason = 'no-money' | 'locked' | 'out-of-season' | 'occupied' | 'not-ready' | 'full'
-  | 'no-feed' | 'invalid' | 'sick' | 'young' | 'no-item';
+  | 'invalid' | 'sick' | 'young' | 'no-item';
 export type ActionResult = { ok: true; n?: number } | { ok: false; reason: Reason };
 export type GameEvent =
   | { type: 'levelUp'; level: number }

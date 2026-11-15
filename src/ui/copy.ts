@@ -14,7 +14,6 @@ const REASON: Record<Exclude<Reason, 'locked'>, string> = {
   occupied: 'Zajęte',
   'not-ready': 'Jeszcze rośnie',
   full: 'Brak miejsca',
-  'no-feed': 'Brak paszy',
   'no-item': 'Brak w magazynie',
   sick: 'Najpierw weterynarz',
   young: 'Jeszcze młode',

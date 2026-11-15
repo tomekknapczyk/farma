@@ -54,6 +54,29 @@ describe('useTractor', () => {
     expect(useTractor(s, ctx(), 0, 0)).toEqual({ ok: true, n: 1 });
     expect(s.fields[1].crop).toBe('wheat');
   });
+  it('tap in the middle of a 6-field run: window of 4 extends right first (x=2 -> 2..5)', () => {
+    const s = tractorState([0, 1, 2, 3, 4, 5].map((x) => field(x, 'ready')));
+    expect(useTractor(s, ctx(), 2, 0)).toEqual({ ok: true, n: 4 });
+    expect(s.fields.map((f) => f.crop === null)).toEqual([false, false, true, true, true, true]);
+  });
+  it('near the right end the window extends left (run 0..5, tap x=4 -> 2..5)', () => {
+    const s = tractorState([0, 1, 2, 3, 4, 5].map((x) => field(x, 'ready')));
+    expect(useTractor(s, ctx(), 4, 0)).toEqual({ ok: true, n: 4 });
+    expect(s.fields.map((f) => f.crop === null)).toEqual([false, false, true, true, true, true]);
+  });
+  it('tap on the last field of a 4-run works the whole run (x=3 -> 0..3)', () => {
+    const s = tractorState([0, 1, 2, 3].map((x) => field(x, 'ready')));
+    expect(useTractor(s, ctx(), 3, 0)).toEqual({ ok: true, n: 4 });
+  });
+  it('the run is limited by gaps on both sides and stays on its row', () => {
+    const s = tractorState([field(0, 'ready'), field(2, 'ready'), field(3, 'ready'), field(5, 'ready'), field(2, 'ready', 1)]);
+    expect(useTractor(s, ctx(), 3, 0)).toEqual({ ok: true, n: 2 });
+    expect(s.fields.map((f) => f.crop === null)).toEqual([false, true, true, false, false]);
+  });
+  it('tap on a tile without a field: invalid, unchanged', () => {
+    const s = tractorState([field(0, 'ready'), field(2, 'ready')]);
+    expectUnchanged(s, () => useTractor(s, ctx(), 1, 0), 'invalid');
+  });
   it('without tractor: locked, unchanged', () => {
     const s = tractorState([field(0, 'ready')]);
     s.hasTractor = false;
