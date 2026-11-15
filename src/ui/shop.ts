@@ -155,6 +155,9 @@ export function openShop(controller: GameController, scene: FarmScene, startTab?
 
   // chosen amounts outlive re-renders of the list
   const qty: Partial<Record<ItemId, number>> = {};
+  // each sell row follows the stock itself (live() holds back re-renders while the field is focused)
+  let rowSubs: (() => void)[] = [];
+  const dropRows = () => { for (const u of rowSubs) u(); rowSubs = []; };
   const sellRow = (item: ItemId): HTMLElement => {
     const unit = item in CROPS ? CROPS[item as keyof typeof CROPS].price : PRODUCTS[item as keyof typeof PRODUCTS].price;
     const stock = () => controller.state.storage[item];
@@ -190,7 +193,8 @@ export function openShop(controller: GameController, scene: FarmScene, startTab?
       const n = clampQty(qty[item] ?? 0, max);
       qty[item] = n;
       count.textContent = T.times(max);
-      if (!keepTyped) input.value = String(n);
+      // keepTyped: leave the field (and caret) alone unless its number is above the new limit
+      if (!keepTyped || (input.value !== '' && Number(input.value) !== n)) input.value = String(n);
       minus.classList.toggle('disabled', n <= 0);
       plus1.classList.toggle('disabled', n >= max);
       plus10.classList.toggle('disabled', n >= max);
@@ -198,14 +202,13 @@ export function openShop(controller: GameController, scene: FarmScene, startTab?
       goLabel.textContent = T.sellFor(n, n * unit);
     };
     input.addEventListener('input', () => {
-      const n = clampQty(input.value, stock());
-      qty[item] = n;
-      // an emptied field stays empty while typing; anything else shows the clamped number
-      update(input.value === '' || input.value === String(n));
+      qty[item] = clampQty(input.value, stock());
+      update(true); // an emptied field stays empty while typing; a too-big or non-digit value is corrected
     });
     input.addEventListener('blur', () => update());
     input.addEventListener('focus', () => input.select());
     update();
+    rowSubs.push(controller.subscribe(() => update(true)));
     return el('div', 'sell-row',
       el('div', 'row', icon(itemIcon(item), 'row-icon'), count, price(unit), el('span', 'spacer'), go),
       el('div', 'qty-row', minus, input, plus1, plus10, all),
@@ -219,12 +222,13 @@ export function openShop(controller: GameController, scene: FarmScene, startTab?
   };
   // tabs live inside the re-rendered target so the press guard covers them too
   const view = live((fn) => controller.subscribe(fn), key, m.body, (into) => {
+    dropRows();
     renderTabs(into);
     const content = el('div', 'shop-content');
     into.append(content);
     if (tab === 'buy') buyGrid(content); else sellList(content);
   });
-  m.onClose(view.stop);
+  m.onClose(() => { view.stop(); dropRows(); });
 }
 
 function candidates(s: GameState, c: Choice): Building[] {

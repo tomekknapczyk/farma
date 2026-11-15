@@ -119,4 +119,26 @@ describe('live() focused input', () => {
     await new Promise((r) => setTimeout(r, 0));
     expect(render).toHaveBeenCalledTimes(2);
   });
+
+  it('keeps holding back while focus moves to another input in the target, catches up when it leaves', async () => {
+    let notify: () => void = () => {};
+    let value = 'a';
+    const target = document.createElement('div');
+    const outside = document.createElement('input');
+    document.body.append(target, outside);
+    const render = vi.fn((into: HTMLElement) => { into.append(document.createElement('input'), document.createElement('input')); });
+    live((fn) => { notify = fn; return () => {}; }, () => value, target, render);
+    const [a, b] = [...target.querySelectorAll('input')];
+    a.focus();
+    value = 'b';
+    notify();
+    b.focus(); // focusout from a, focus stays inside the target
+    await new Promise((r) => setTimeout(r, 0));
+    expect(render).toHaveBeenCalledTimes(1);
+    expect(target.querySelectorAll('input')[1]).toBe(b);
+    outside.focus();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(render).toHaveBeenCalledTimes(2);
+  });
 });
+

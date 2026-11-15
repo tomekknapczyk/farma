@@ -79,4 +79,41 @@ describe('sell quantity picker', () => {
     expect(input().value).toBe('30');
     c.dispose();
   });
+
+  it('follows the stock while the field is focused: label, preview and bounds update, input node kept', () => {
+    const { c, notify, input } = setup();
+    const field = input();
+    field.focus();
+    field.value = '25';
+    field.dispatchEvent(new Event('input', { bubbles: true }));
+    const row = document.querySelector('.sell-row') as HTMLElement;
+    const go = row.querySelector('.btn.sell-go') as HTMLButtonElement;
+    c.state.storage.wheat = 10; // e.g. stock used elsewhere while the child is typing
+    notify();
+    expect(input()).toBe(field);
+    expect(document.activeElement).toBe(field);
+    expect(field.value).toBe('10');
+    expect(row.querySelector('.row-count')?.textContent).toBe('×10');
+    expect(go.textContent).toContain('Sprzedaj 10 → 40');
+    expect((row.querySelector('.btn.q-plus1') as HTMLElement).classList.contains('disabled')).toBe(true);
+    c.state.storage.wheat = 0;
+    notify();
+    expect(input()).toBe(field);
+    expect(go.classList.contains('disabled')).toBe(true);
+    const coins = c.state.coins;
+    go.click();
+    expect(c.state.coins).toBe(coins);
+    c.dispose();
+  });
+
+  it('stops following the stock after the shop closes', () => {
+    const { c, notify } = setup();
+    const go = document.querySelector('.sell-row .btn.sell-go') as HTMLButtonElement;
+    closeModal();
+    c.state.storage.wheat = 7;
+    notify();
+    expect(go.textContent).toContain('Sprzedaj 0 → 0');
+    expect((c as unknown as { subs: Set<unknown> }).subs.size).toBe(0);
+    c.dispose();
+  });
 });
