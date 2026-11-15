@@ -58,21 +58,21 @@ export const BIRTH_CHANCE = 0.10;
 export const BIRTH_CHANCE_TREAT = 0.20;
 export const TREAT_SPEED = 2;
 
-export const FIELD_COST = 400;
+export const FIELD_COST = 15;
 export const PARCEL_LEVEL = 2;
 /** bought = number of purchased parcels so far */
 export function parcelCost(bought: number): number {
-  return Math.round(400 * Math.pow(1.5, bought));
+  return Math.round(100 * Math.pow(2, bought));
 }
 
 export const TRACTOR = { level: 8, cost: 500, rowLength: 4 };
 
 export const XP = { plant: 1, harvest: 2, collect: 2, treat: 1, sellHorse: 10, buy: 5 };
 export const MAX_LEVEL = 10;
-// tuned by scripts/sim.ts on 2026-11-15: base 100, factor 2.2 (with FIELD_COST 400, parcel base 400);
-// bot (seeds 1-3): lvl3 ~13.5 min, lvl6 ~67 min, lvl10 ~365 min
+// tuned by scripts/sim.ts on 2026-11-15 (tap-limited bot, 40 taps/min): base 500, factor 1.45
+// (FIELD_COST 15, parcelCost 100 * 2^n); lvl3 ~22 min, lvl6 ~97 min, lvl10 ~631 min
 export function xpToNext(level: number): number {
-  return Math.round(100 * Math.pow(2.2, level - 1));
+  return Math.round(500 * Math.pow(1.45, level - 1));
 }
 
 export const SEASON_MS = 3600000;

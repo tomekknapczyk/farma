@@ -32,9 +32,9 @@ describe('map', () => {
     expectUnchanged(s, () => buyParcel(s, ctx(), 6), 'locked');
   });
   it('buyParcel at level 2', () => {
-    const s = newTestState({ coins: 600, level: 2 });
+    const s = newTestState({ coins: 200, level: 2 });
     expect(buyParcel(s, ctx(), 6)).toEqual({ ok: true });
-    expect(s.coins).toBe(200);
+    expect(s.coins).toBe(100);
     expect(s.parcels[6]).toBe(true);
     expect(s.xp).toBe(5);
   });

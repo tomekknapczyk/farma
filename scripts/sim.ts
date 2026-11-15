@@ -1,4 +1,15 @@
-// Headless balance bot: plays the real core logic. Usage: npm run sim -- --hours 14 --seed 1
+// Headless balance bot: plays the real core logic. Usage: npm run sim -- --hours 14 --seed 1 [--taps 40]
+//
+// Tap budget (--taps, default 40): max XP-generating actions per game minute (plant, water, harvest,
+// collectProduct, giveTreat = 1 each; one useTractor call = 1). Models a child's tapping speed. Sell, fill
+// trough, buy and vet are free. The tractor is preferred once owned.
+//
+// Bot heuristics. Crops: plant the plantable, affordable crop with the best price*yield/growMs; wheat (or carrot
+// when horses exist) when feed stock < 10 and animals exist. Surplus sold above 10 of each crop (all if no animals).
+// Purchase order (every 10 s, when coins >= 2x price): sell farm-born adult horses if stable full, one building per
+// kind, animals (pony for stable), field (first free tile, at most 60% of unlocked tiles), parcel (index order,
+// adjacent), tractor, building upgrades.
+// Note: seeds barely differ, only weather and sickness are random.
 import { BUILDINGS, CROPS, FIELD_COST, MAP_SIZE, MAX_LEVEL, PARCEL_SIZE, SPECIES, TRACTOR, parcelCost } from '../src/core/config';
 import { buildBuilding, buyAnimal, callVet, capacity, collectProduct, fillTrough, upgradeBuilding } from '../src/core/animals';
 import { buildField, canPlantNow, harvest, isReady, plant, water } from '../src/core/crops';
@@ -8,7 +19,7 @@ import { buyParcel, canPlace } from '../src/core/map';
 import { createRng } from '../src/core/rng';
 import { createInitialState } from '../src/core/state';
 import { tick } from '../src/core/tick';
-import { buyTractor } from '../src/core/tractor';
+import { buyTractor, useTractor } from '../src/core/tractor';
 import type { BuildingKind, CropId, Ctx, GameState } from '../src/core/types';
 
 function arg(name: string, def: number): number {
@@ -22,21 +33,35 @@ const CROP_IDS = Object.keys(CROPS) as CropId[];
 
 function findSpot(s: GameState, w: number, h: number, fromEnd: boolean): [number, number] | null {
   const range = [...Array(MAP_SIZE).keys()];
+  // fromEnd: scan anchors from the bottom-right so buildings stay away from the field area (top-left first)
   const ys = fromEnd ? range.slice().reverse() : range;
   const xs = fromEnd ? range.slice().reverse() : range;
   for (const y of ys) for (const x of xs) {
-    // for a 2x2 anchored at top-left, iterate anchors; fromEnd just changes preference order
     if (canPlace(s, x, y, w, h)) return [x, y];
   }
   return null;
 }
 
-function cheapScan(s: GameState, ctx: Ctx): void {
+function cheapScan(s: GameState, ctx: Ctx, bud: { taps: number }): void {
   const animalsExist = s.animals.length > 0;
-  for (const f of s.fields) if (isReady(f)) harvest(s, ctx, f.id);
-  for (const f of s.fields) if (f.crop !== null && !f.watered) water(s, ctx, f.id);
+  const tap = (): boolean => { if (bud.taps < 1) return false; bud.taps -= 1; return true; };
+  const hasField = (x: number, y: number) => s.fields.some((f) => f.x === x && f.y === y);
+  if (s.hasTractor) {
+    const covered = new Set<string>();
+    for (const f of s.fields.slice().sort((a, b) => a.y - b.y || a.x - b.x)) {
+      if (covered.has(`${f.x},${f.y}`)) continue;
+      const seg: typeof s.fields = [];
+      for (let i = 0; i < TRACTOR.rowLength && hasField(f.x + i, f.y); i++) {
+        covered.add(`${f.x + i},${f.y}`);
+        seg.push(s.fields.find((g) => g.x === f.x + i && g.y === f.y)!);
+      }
+      if (seg.some((g) => isReady(g) || (g.crop !== null && !g.watered)) && tap()) useTractor(s, ctx, f.x, f.y);
+    }
+  } else {
+    for (const f of s.fields) if (isReady(f) && tap()) harvest(s, ctx, f.id);
+  }
   for (const a of s.animals) {
-    if (a.productReady) collectProduct(s, ctx, a.id);
+    if (a.productReady && tap()) collectProduct(s, ctx, a.id);
     if (a.sick) callVet(s, ctx, a.id);
   }
   // plant: most expensive plantable crop; wheat first if feed stock is low
@@ -48,10 +73,11 @@ function cheapScan(s: GameState, ctx: Ctx): void {
       let pick = byPrice[0];
       if (animalsExist && s.storage.wheat < FEED_STOCK && options.includes('wheat')) pick = 'wheat';
       else if (animalsExist && s.animals.some((a) => a.species === 'horse') && s.storage.carrot < FEED_STOCK && options.includes('carrot')) pick = 'carrot';
-      if (!pick) break;
-      if (!plant(s, ctx, f.id, pick).ok) break;
+      if (!pick || !tap()) break;
+      if (!plant(s, ctx, f.id, pick).ok) { bud.taps += 1; break; }
     }
   }
+  if (!s.hasTractor) for (const f of s.fields) if (f.crop !== null && !f.watered && tap()) water(s, ctx, f.id);
   // troughs
   for (const b of s.buildings) {
     if (!s.animals.some((a) => a.buildingId === b.id)) continue;
@@ -126,18 +152,26 @@ function main(): void {
   const seed = arg('seed', 1);
   const s = createInitialState(seed);
   const ctx: Ctx = { rng: createRng(seed), events: [] };
+  const taps = arg('taps', 40);
+  const bud = { taps };
+  let fifthField = -1, firstCoop = -1;
   const reached: number[] = [0];
   const steps = Math.round(hours * 3600);
   for (let i = 0; i < steps; i++) {
-    cheapScan(s, ctx);
+    bud.taps = Math.min(taps, bud.taps + taps / 60);
+    cheapScan(s, ctx, bud);
     if (i % 10 === 0) buyStep(s, ctx);
     tick(s, ctx, 1000);
     ctx.events.length = 0;
+    const min = Math.round((s.timeMs / 60000) * 10) / 10;
+    if (fifthField < 0 && s.fields.length >= 5) fifthField = min;
+    if (firstCoop < 0 && s.buildings.some((b) => b.kind === 'coop')) firstCoop = min;
     while (reached.length < s.level) reached.push(Math.round((s.timeMs / 60000) * 10) / 10);
   }
   console.log(`seed ${seed}, ${hours} h`);
   console.log('level | game minute');
   for (let l = 2; l <= MAX_LEVEL; l++) console.log(`${String(l).padStart(5)} | ${reached[l - 1] ?? 'not reached'}`);
+  console.log(`5th field at min ${fifthField}, first coop at min ${firstCoop}`);
   console.log(`coins ${s.coins}, level ${s.level}, fields ${s.fields.length}, animals ${s.animals.length}, parcels ${s.parcels.filter(Boolean).length}, tractor ${s.hasTractor}`);
 }
 main();

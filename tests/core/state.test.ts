@@ -38,9 +38,9 @@ describe('newId', () => {
 
 describe('xpToNext', () => {
   it('matches table', () => {
-    expect(xpToNext(1)).toBe(100);
-    expect(xpToNext(2)).toBe(220);
-    expect(xpToNext(9)).toBe(54876);
+    expect(xpToNext(1)).toBe(500);
+    expect(xpToNext(2)).toBe(725);
+    expect(xpToNext(9)).toBe(9770);
   });
 });
 
