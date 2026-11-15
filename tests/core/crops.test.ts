@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildField, canPlantNow, cropStage, harvest, isReady, plant, water } from '../../src/core/crops';
+import { CROPS } from '../../src/core/config';
 import { tick } from '../../src/core/tick';
 import { ctx, expectUnchanged, newTestState } from '../../src/core/testutil';
 
@@ -9,6 +10,20 @@ function run(s: ReturnType<typeof newTestState>, c: ReturnType<typeof ctx>, ms: 
 }
 
 describe('crops', () => {
+  it('harvest XP scales with the crop: wheat 2, carrot 3, corn 4, pumpkin 6', () => {
+    const expected = { wheat: 2, carrot: 3, corn: 4, pumpkin: 6 } as const;
+    for (const [crop, xp] of Object.entries(expected) as [keyof typeof expected, number][]) {
+      const s = newTestState({ level: 10, coins: 1000, timeMs: 4_000_000 });
+      const c = ctx();
+      expect(plant(s, c, 'f1', crop)).toEqual({ ok: true });
+      water(s, c, 'f1');
+      run(s, c, CROPS[crop].growMs);
+      const before = s.xp;
+      expect(harvest(s, c, 'f1').ok).toBe(true);
+      expect(s.xp - before).toBe(xp);
+      expect(c.events.find((e) => e.type === 'gain')).toMatchObject({ item: crop, xp });
+    }
+  });
   it('plant wheat', () => {
     const s = newTestState();
     expect(plant(s, ctx(), 'f1', 'wheat')).toEqual({ ok: true });

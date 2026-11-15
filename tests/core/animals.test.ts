@@ -89,6 +89,24 @@ describe('animals', () => {
     expect(animalStatus(s.animals[0])).toBe('hungry');
     expect(s.animals[0].productReady).toBe(false);
   });
+  it('collectProduct XP scales with the product: egg 2, milk 4', () => {
+    const { s } = coopState(1);
+    s.animals[0].productReady = true;
+    const c = ctx();
+    const before = s.xp;
+    expect(collectProduct(s, c, s.animals[0].id)).toEqual({ ok: true });
+    expect(s.xp - before).toBe(2);
+    expect(c.events.find((e) => e.type === 'gain')).toMatchObject({ item: 'egg', xp: 2 });
+    const m = newTestState({ level: 5, coins: 1000, parcels: new Array(16).fill(true) });
+    expect(buildBuilding(m, ctx(), 'barn', 0, 0)).toEqual({ ok: true });
+    expect(buyAnimal(m, ctx(), 'cow', m.buildings[0].id)).toEqual({ ok: true });
+    m.animals[0].productReady = true;
+    const c2 = ctx();
+    const b2 = m.xp;
+    expect(collectProduct(m, c2, m.animals[0].id)).toEqual({ ok: true });
+    expect(m.xp - b2).toBe(4);
+    expect(c2.events.find((e) => e.type === 'gain')).toMatchObject({ item: 'milk', xp: 4 });
+  });
   it('collectProduct', () => {
     const { s, id } = coopState(1);
     s.storage.wheat = 10;

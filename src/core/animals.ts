@@ -1,5 +1,5 @@
 import {
-  BIRTH_CHANCE, BIRTH_CHANCE_TREAT, BUILDINGS, CROPS, SICK_CHANCE, SPECIES, TREAT_SPEED, TROUGH_CAP, TROUGH_CAP_UP,
+  BIRTH_CHANCE, BIRTH_CHANCE_TREAT, BUILDINGS, CROPS, PRODUCTS, SICK_CHANCE, SPECIES, TREAT_SPEED, TROUGH_CAP, TROUGH_CAP_UP,
   UPGRADE, XP,
 } from './config';
 import { addXp, isUnlocked, spend } from './economy';
@@ -97,8 +97,8 @@ export function collectProduct(s: GameState, ctx: Ctx, animalId: string): Action
   const b = s.buildings.find((v) => v.id === a.buildingId);
   a.productReady = false;
   s.storage[product] += 1;
-  ctx.events.push({ type: 'gain', x: b?.x ?? 0, y: b?.y ?? 0, item: product, qty: 1, xp: XP.collect });
-  addXp(s, ctx, XP.collect);
+  ctx.events.push({ type: 'gain', x: b?.x ?? 0, y: b?.y ?? 0, item: product, qty: 1, xp: PRODUCTS[product].xp });
+  addXp(s, ctx, PRODUCTS[product].xp);
   return { ok: true };
 }
 

@@ -37,3 +37,18 @@ describe('HUD storage bar', () => {
     expect(onTap).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('HUD XP bar', () => {
+  it('fills with a two-decimal width and updates when a gain crosses a 0.5% step', () => {
+    const { c, state, notify } = fakeController();
+    const root = document.createElement('div');
+    mountHud(root, c, () => {});
+    const fill = root.querySelector('.xp-fill') as HTMLElement;
+    state.xp = 18; // 18 / 150 = 12%
+    notify();
+    expect(fill.style.width).toBe('12.00%');
+    state.xp = 19; // 12.666...% -> key 12.5, a new step, so it re-renders
+    notify();
+    expect(fill.style.width).toBe('12.67%');
+  });
+});
