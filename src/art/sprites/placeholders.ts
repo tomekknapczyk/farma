@@ -208,11 +208,16 @@ function building(key: string, c: BuildingColors): PixelSprite {
 }
 
 function buildings(): PixelSprite[] {
-  return [
-    building('bld-coop', { front: 't', side: 'A', roofL: 'R', roofR: 'r', door: 'B', frame: 'w' }),
-    building('bld-barn', { front: 'r', side: 'p', roofL: 'e', roofR: 'E', door: 'B', frame: 'w' }),
-    building('bld-stable', { front: 'b', side: 'B', roofL: 'a', roofR: 'O', door: 'p', frame: 's' }),
+  const kinds: [string, BuildingColors][] = [
+    ['bld-coop', { front: 't', side: 'A', roofL: 'R', roofR: 'r', door: 'B', frame: 'w' }],
+    ['bld-barn', { front: 'r', side: 'p', roofL: 'e', roofR: 'E', door: 'B', frame: 'w' }],
+    ['bld-stable', { front: 'b', side: 'B', roofL: 'a', roofR: 'O', door: 'p', frame: 's' }],
   ];
+  // `@winter` = same building with a snow-covered roof (drawn as a fading overlay on the base sprite)
+  return kinds.flatMap(([key, c]) => [
+    building(key, c),
+    building(`${key}@winter`, { ...c, roofL: 'w', roofR: 'P' }),
+  ]);
 }
 
 // ---------------------------------------------------------------------------------------------

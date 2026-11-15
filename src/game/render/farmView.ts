@@ -7,6 +7,7 @@ import { isTileUnlocked, parcelOf } from '../../core/map';
 import { getSeasonInfo } from '../../core/seasons';
 import type { Animal, Building, GameState, Season } from '../../core/types';
 import { isoToScreen } from '../iso';
+import { currentTint, mulTint, snowAmount } from '../seasonFx';
 import { animalTexture, statusIcon } from './animalArt';
 
 /** Ground is flat (depth 0); objects sort by (x + y); highlight and icons float above. */
@@ -20,6 +21,10 @@ const PARCELS = MAP_SIZE / PARCEL_SIZE;
 const ANIMAL_PICK_SLOP = 3; // world px around an animal sprite that still counts as a hit
 const ANIMAL_SPEED = 10; // world px per second
 const LOCKED_TINT = 0x777777;
+const SNOW_TILE = 'tile-grass@winter'; // white diamond reused as the snow/frost overlay
+const SNOW_ON_GROUND = 0.8;
+const FROST_ON_FIELD = 0.4;
+const DEPTH_SNOW = 1;
 
 interface AnimalView {
   sprite: Phaser.GameObjects.Image;
@@ -35,11 +40,14 @@ function tileHash(x: number, y: number): number {
 
 export class FarmView {
   private tiles: Phaser.GameObjects.Image[] = [];
+  private snowTiles: Phaser.GameObjects.Image[] = [];
+  private tint = 0xffffff;
+  private snow = 0;
   private locks: Phaser.GameObjects.Image[] = [];
   private trees: { img: Phaser.GameObjects.Image; x: number; y: number }[] = [];
   private crops = new Map<string, Phaser.GameObjects.Image>();
   private waterIcons = new Map<string, Phaser.GameObjects.Image>();
-  private buildings = new Map<string, { bld: Phaser.GameObjects.Image; trough: Phaser.GameObjects.Image }>();
+  private buildings = new Map<string, { bld: Phaser.GameObjects.Image; trough: Phaser.GameObjects.Image; roof: Phaser.GameObjects.Image }>();
   private animals = new Map<string, AnimalView>();
   private buildingById = new Map<string, Building>();
 
@@ -48,6 +56,7 @@ export class FarmView {
       for (let x = 0; x < MAP_SIZE; x++) {
         const { sx, sy } = isoToScreen(x, y);
         this.tiles.push(scene.add.image(sx, sy, 'tile-grass').setOrigin(0.5, 0).setDepth(DEPTH.ground));
+        this.snowTiles.push(scene.add.image(sx, sy, SNOW_TILE).setOrigin(0.5, 0).setDepth(DEPTH_SNOW).setAlpha(0).setVisible(false));
         // scenery: a few trees on tiles that start locked, away from the parcel centre lock icon
         const lx = x % PARCEL_SIZE;
         const ly = y % PARCEL_SIZE;
@@ -68,10 +77,37 @@ export class FarmView {
 
   refresh(s: GameState): void {
     const season = getSeasonInfo(s.timeMs).season;
+    const tint = currentTint(s.timeMs);
+    const snow = snowAmount(s.timeMs);
+    const tintChanged = tint !== this.tint;
+    const snowChanged = Math.abs(snow - this.snow) > 0.002;
+    this.tint = tint;
+    this.snow = snow;
     this.refreshGround(s, season);
     this.refreshFields(s);
     this.refreshBuildings(s);
     this.refreshAnimals(s);
+    if (tintChanged) this.applyTintToAll();
+    if (snowChanged || this.snow > 0) this.applySnow(s);
+  }
+
+  /** Season tint on world objects (tiles, trees, crops, buildings, animals); not on UI icons or overlays. */
+  private applyTintToAll(): void {
+    for (const img of this.tiles) img.setTint(this.tint);
+    for (const t of this.trees) t.img.setTint(mulTint(LOCKED_TINT, this.tint));
+    for (const img of this.crops.values()) img.setTint(this.tint);
+    for (const v of this.buildings.values()) { v.bld.setTint(this.tint); v.trough.setTint(this.tint); v.roof.setTint(this.tint); }
+    for (const v of this.animals.values()) v.sprite.setTint(this.tint);
+  }
+
+  /** Snow on the ground (frost on fields) and snow caps on roofs, alpha = current snow amount. */
+  private applySnow(s: GameState): void {
+    const fieldAt = new Set(s.fields.map((f) => f.y * MAP_SIZE + f.x));
+    this.snowTiles.forEach((img, i) => {
+      const a = this.snow * (fieldAt.has(i) ? FROST_ON_FIELD : SNOW_ON_GROUND);
+      img.setAlpha(a).setVisible(a > 0);
+    });
+    for (const v of this.buildings.values()) v.roof.setAlpha(this.snow).setVisible(this.snow > 0);
   }
 
   /** Per-frame animation (animal wandering). */
@@ -144,7 +180,7 @@ export class FarmView {
       // trees only decorate locked land; they disappear when the parcel is bought
       t.img.setVisible(!unlocked);
       if (t.img.texture.key !== treeKey) t.img.setTexture(treeKey);
-      t.img.setTint(LOCKED_TINT);
+      t.img.setTint(mulTint(LOCKED_TINT, this.tint));
     }
   }
 
@@ -157,7 +193,7 @@ export class FarmView {
         const key = `crop-${f.crop}-${cropStage(f)}`;
         let img = this.crops.get(f.id);
         if (!img) {
-          img = this.scene.add.image(sx, sy + 16, key).setOrigin(0.5, 1).setDepth(objectDepth(f.x, f.y));
+          img = this.scene.add.image(sx, sy + 16, key).setOrigin(0.5, 1).setDepth(objectDepth(f.x, f.y)).setTint(this.tint);
           this.crops.set(f.id, img);
         } else if (img.texture.key !== key) img.setTexture(key);
       }
@@ -184,15 +220,17 @@ export class FarmView {
       if (!v) {
         const depth = objectDepth(b.x + 1, b.y + 1);
         v = {
-          bld: this.scene.add.image(sx, sy + 32, `bld-${b.kind}`).setOrigin(0.5, 1).setDepth(depth),
-          trough: this.scene.add.image(sx - 16, sy + 23, troughKey).setOrigin(0.5, 1).setDepth(depth + 1),
+          bld: this.scene.add.image(sx, sy + 32, `bld-${b.kind}`).setOrigin(0.5, 1).setDepth(depth).setTint(this.tint),
+          trough: this.scene.add.image(sx - 16, sy + 23, troughKey).setOrigin(0.5, 1).setDepth(depth + 1).setTint(this.tint),
+          roof: this.scene.add.image(sx, sy + 32, textureFor(`bld-${b.kind}`, 'winter')).setOrigin(0.5, 1).setDepth(depth + 0.1)
+            .setTint(this.tint).setAlpha(this.snow).setVisible(this.snow > 0),
         };
         this.buildings.set(b.id, v);
       }
       if (v.trough.texture.key !== troughKey) v.trough.setTexture(troughKey);
     }
     for (const [id, v] of this.buildings) {
-      if (!this.buildingById.has(id)) { v.bld.destroy(); v.trough.destroy(); this.buildings.delete(id); }
+      if (!this.buildingById.has(id)) { v.bld.destroy(); v.trough.destroy(); v.roof.destroy(); this.buildings.delete(id); }
     }
   }
 
@@ -207,7 +245,7 @@ export class FarmView {
         const [x, y] = wanderPoint(b);
         const [tx, ty] = wanderPoint(b);
         v = {
-          sprite: this.scene.add.image(x, y, animalTexture(a)).setOrigin(0.5, 1).setDepth(animalDepth(b, y)),
+          sprite: this.scene.add.image(x, y, animalTexture(a)).setOrigin(0.5, 1).setDepth(animalDepth(b, y)).setTint(this.tint),
           icon: this.scene.add.image(x, y - 16, 'icon-heart').setOrigin(0.5, 1).setDepth(DEPTH.icon).setVisible(false),
           buildingId: b.id, tx, ty, wait: Math.random() * 2000,
         };

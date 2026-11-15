@@ -6,6 +6,7 @@ import type { GameEvent } from '../core/types';
 import type { GameController } from './controller';
 import { isoToScreen, nearestZoomIndex, screenToIso, TILE_H, TILE_W, ZOOM_STEPS } from './iso';
 import { DEPTH, FarmView, type ObjectTap } from './render/farmView';
+import { WeatherFx } from './render/weatherFx';
 
 export type Tool = 'hand' | 'plant' | 'water' | 'harvest' | 'tractor';
 export type { ObjectTap };
@@ -56,6 +57,7 @@ export class FarmScene extends Phaser.Scene {
   currentTool: Tool = 'hand';
   private controller!: GameController;
   private view!: FarmView;
+  private weather!: WeatherFx;
   private highlight!: Phaser.GameObjects.Graphics;
   private ghost!: Phaser.GameObjects.Graphics;
   private zones!: Phaser.GameObjects.Graphics;
@@ -96,6 +98,7 @@ export class FarmScene extends Phaser.Scene {
     this.ghostImg = this.add.image(0, 0, 'bld-coop').setOrigin(0.5, 1).setAlpha(0.6).setDepth(DEPTH.highlight + 2)
       .setVisible(false);
     this.setupCamera();
+    this.weather = new WeatherFx(this);
     this.setupInput();
     this.refresh();
     this.unsubscribe = this.controller.subscribe(() => this.refresh());
@@ -106,10 +109,12 @@ export class FarmScene extends Phaser.Scene {
   update(_time: number, delta: number): void {
     this.controller.step(delta);
     this.view.update(delta);
+    this.weather.layout();
   }
 
   private refresh(): void {
     this.view.refresh(this.controller.state);
+    this.weather.set(this.controller.state.weather.kind);
     if (this.placement) { this.drawZones(); this.drawGhost(this.ghostTile); }
     for (const e of this.controller.drainEvents()) this.events.emit(EV_GAME_EVENT, e as GameEvent);
   }
