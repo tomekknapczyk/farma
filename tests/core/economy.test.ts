@@ -5,17 +5,17 @@ import { tick } from '../../src/core/tick';
 import { ctx, expectUnchanged, newTestState } from '../../src/core/testutil';
 
 describe('xp and levels', () => {
-  it('30 xp -> level 2, one event', () => {
+  it('100 xp -> level 2, one event', () => {
     const s = newTestState({ xp: 0, level: 1 });
     const c = ctx();
-    addXp(s, c, 30);
+    addXp(s, c, 100);
     expect(s.level).toBe(2);
     expect(c.events.filter((e) => e.type === 'levelUp')).toHaveLength(1);
   });
-  it('30+48 xp -> level 3, two events', () => {
+  it('100+220 xp -> level 3, two events', () => {
     const s = newTestState({ xp: 0, level: 1 });
     const c = ctx();
-    addXp(s, c, 78);
+    addXp(s, c, 320);
     expect(s.level).toBe(3);
     expect(c.events.filter((e) => e.type === 'levelUp')).toHaveLength(2);
   });
@@ -29,8 +29,8 @@ describe('xp and levels', () => {
   });
   it('xpProgress', () => {
     const s = newTestState({ xp: 0, level: 1 });
-    addXp(s, ctx(), 35);
-    expect(xpProgress(s)).toEqual({ level: 2, current: 5, needed: 48 });
+    addXp(s, ctx(), 110);
+    expect(xpProgress(s)).toEqual({ level: 2, current: 10, needed: 220 });
   });
 });
 

@@ -84,11 +84,11 @@ describe('crops', () => {
     expect(r.fields[0].watered).toBe(true);
   });
   it('buildField', () => {
-    const s = newTestState();
+    const s = newTestState({ coins: 450 });
     expectUnchanged(s, () => buildField(s, ctx(), 0, 0), 'locked');
     expectUnchanged(s, () => buildField(s, ctx(), 5, 5), 'occupied');
     expect(buildField(s, ctx(), 7, 7)).toEqual({ ok: true });
-    expect(s.coins).toBe(40);
+    expect(s.coins).toBe(50);
     expect(s.fields).toHaveLength(5);
     const p = newTestState({ coins: 5 });
     expectUnchanged(p, () => buildField(p, ctx(), 7, 7), 'no-money');
