@@ -75,6 +75,7 @@ describe('FarmView', () => {
     const { scene, objs } = fakeScene();
     const view = new FarmView(scene);
     const s = createInitialState(1); // owns parcel 5
+    s.level = 2; // PARCEL_LEVEL
     view.refresh(s, 0);
     const prices = objs.filter((o) => o.texture.key === '__text' && o.visible);
     expect(prices).toHaveLength(4); // parcels 1, 4, 6, 9
@@ -83,5 +84,40 @@ describe('FarmView', () => {
     expect(view.pick(lock.sx, lock.sy + 10)).toEqual({ kind: 'lock', parcel: 6 });
     const owned = isoToScreen(4 + 2, 4 + 2); // parcel 5 is owned: its lock is hidden
     expect(view.pick(owned.sx, owned.sy)).toBeNull();
+  });
+
+  it('below PARCEL_LEVEL: locks are shown, but no prices', () => {
+    const { scene, objs, live } = fakeScene();
+    const view = new FarmView(scene);
+    const s = createInitialState(1); // level 1
+    view.refresh(s, 0);
+    expect(objs.filter((o) => o.texture.key === '__text' && o.visible)).toHaveLength(0);
+    expect(objs.filter((o) => o.texture.key === 'icon-coin' && o.visible)).toHaveLength(0);
+    expect(live('icon-lock').filter((o) => o.visible)).toHaveLength(15);
+  });
+
+  it('each animal of a building stands at its own spot; a removed one keeps its head point for one refresh', () => {
+    const { scene, live } = fakeScene();
+    const view = new FarmView(scene);
+    const s = farmWith({ id: 'b9', kind: 'coop', x: 4, y: 4 });
+    for (let i = 0; i < 6; i++) {
+      s.animals.push({
+        id: `a${10 + i}`, species: 'chicken', breed: null, buildingId: 'b9', youngMsLeft: 0, sick: false, cycleMs: 0,
+        productReady: false, treat: false, bornOnFarm: false,
+      });
+    }
+    view.refresh(s, 0);
+    const chickens = live('chicken');
+    expect(chickens).toHaveLength(6);
+    const spots = new Set(chickens.map((c) => `${Math.round(c.x / 8)},${Math.round(c.y / 4)}`));
+    expect(spots.size).toBeGreaterThanOrEqual(5); // spread out (a few px of wander jitter allowed)
+    const head = view.animalHead('a12');
+    expect(head).not.toBeNull();
+    s.animals = s.animals.filter((a) => a.id !== 'a12');
+    view.refresh(s, 0);
+    expect(live('chicken')).toHaveLength(5);
+    expect(view.animalHead('a12')).toEqual(head);
+    view.refresh(s, 0);
+    expect(view.animalHead('a12')).toBeNull();
   });
 });

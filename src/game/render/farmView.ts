@@ -1,13 +1,14 @@
 import Phaser from 'phaser';
 import { textureFor } from '../../art/registry';
 import { troughCap } from '../../core/animals';
-import { MAP_SIZE, PARCEL_SIZE } from '../../core/config';
+import { MAP_SIZE, PARCEL_LEVEL, PARCEL_SIZE } from '../../core/config';
 import { cropStage, isReady } from '../../core/crops';
 import { isTileUnlocked, nextParcelCost, parcelAdjacent, parcelOf } from '../../core/map';
 import { getSeasonInfo } from '../../core/seasons';
 import type { Animal, Building, GameState, Season } from '../../core/types';
 import { isoToScreen } from '../iso';
 import { blendTint, currentTint, mulTint, snowAmount } from '../seasonFx';
+import { animalAnchors, type Anchor } from './animalAnchors';
 import { animalTexture, statusIcon } from './animalArt';
 import { ViewCache } from './viewCache';
 
@@ -21,6 +22,9 @@ export type ObjectTap = { kind: 'building'; id: string } | { kind: 'animal'; id:
 const PARCELS = MAP_SIZE / PARCEL_SIZE;
 const ANIMAL_PICK_SLOP = 3; // world px around an animal sprite that still counts as a hit
 const ANIMAL_SPEED = 10; // world px per second
+const WANDER_X = 3; // world px an animal strays from its anchor (each side)
+const WANDER_Y = 1.5;
+const TROUGH_FOOT_DY = 23; // trough bottom below the building's top corner
 /** Lock hit box around the lock centre (world px): 28x34 = 56x68 screen px at zoom 2, incl. the price. */
 const LOCK_HIT = { halfW: 14, top: 12, bottom: 22 };
 const LOCK_PRICE_DY = 13; // price line below the lock centre
@@ -43,6 +47,7 @@ interface AnimalView {
   sprite: Phaser.GameObjects.Image;
   icon: Phaser.GameObjects.Image;
   buildingId: string;
+  ax: number; ay: number; // own spot in front of the building (world px), see animalAnchors
   tx: number; ty: number; // wander target (world px)
   wait: number; // ms left standing still
 }
@@ -64,6 +69,8 @@ export class FarmView {
   private buildings = new ViewCache<BuildingView>((v) => { v.bld.destroy(); v.trough.destroy(); v.roof.destroy(); });
   private animals = new ViewCache<AnimalView>((v) => { v.sprite.destroy(); v.icon.destroy(); });
   private buildingById = new Map<string, Building>();
+  /** Head positions of animals removed in the last refresh (a sold horse's gain float starts there). */
+  private goneAnimals = new Map<string, { x: number; y: number }>();
 
   constructor(private scene: Phaser.Scene) {
     for (let y = 0; y < MAP_SIZE; y++) {
@@ -159,7 +166,8 @@ export class FarmView {
         if (dist <= stepLen) {
           v.sprite.setPosition(v.tx, v.ty);
           v.wait = 1000 + Math.random() * 3000;
-          [v.tx, v.ty] = wanderPoint(b);
+          v.tx = v.ax + (Math.random() * 2 - 1) * WANDER_X;
+          v.ty = v.ay + (Math.random() * 2 - 1) * WANDER_Y;
         } else {
           v.sprite.x += (dx / dist) * stepLen;
           v.sprite.y += (dy / dist) * stepLen;
@@ -169,6 +177,13 @@ export class FarmView {
       v.sprite.setDepth(animalDepth(b, v.sprite.y));
       v.icon.setPosition(v.sprite.x, v.sprite.y - v.sprite.height); // above the head (horses are taller)
     }
+  }
+
+  /** World point just above an animal's head (also for one removed in the last refresh), or null. */
+  animalHead(id: string): { x: number; y: number } | null {
+    const v = this.animals.get(id);
+    if (v) return { x: v.sprite.x, y: v.sprite.y - v.sprite.height };
+    return this.goneAnimals.get(id) ?? null;
   }
 
   /** Topmost animal (bounds + slop) or building (opaque sprite pixel) at a world point. */
@@ -214,10 +229,11 @@ export class FarmView {
       }
     }
     const cost = nextParcelCost(s);
+    const canBuyParcels = s.level >= PARCEL_LEVEL;
     this.locks.forEach((l, p) => {
       l.img.setVisible(!s.parcels[p]);
-      // the price only on parcels that can be bought next (adjacent to owned land)
-      const show = parcelAdjacent(s, p);
+      // the price only on parcels that can be bought now (level reached, adjacent to owned land)
+      const show = canBuyParcels && parcelAdjacent(s, p);
       l.price.setVisible(show);
       l.coin.setVisible(show);
       if (show && l.shown !== cost) {
@@ -275,7 +291,9 @@ export class FarmView {
         const depth = objectDepth(b.x + 1, b.y + 1);
         v = {
           bld: this.scene.add.image(sx, sy + 32, `bld-${b.kind}`).setOrigin(0.5, 1).setDepth(depth).setTint(this.tint),
-          trough: this.scene.add.image(sx - 16, sy + 23, troughKey).setOrigin(0.5, 1).setDepth(depth + 1).setTint(this.tint),
+          // sorted with the animals by foot y: animals standing behind the trough are drawn behind it
+          trough: this.scene.add.image(sx - 16, sy + TROUGH_FOOT_DY, troughKey).setOrigin(0.5, 1)
+            .setDepth(animalDepth(b, sy + TROUGH_FOOT_DY)).setTint(this.tint),
           roof: this.scene.add.image(sx, sy + 32, textureFor(`bld-${b.kind}`, 'winter')).setOrigin(0.5, 1).setDepth(depth + 0.1)
             .setTint(this.tint).setAlpha(this.snow).setVisible(this.snow > 0),
         };
@@ -288,20 +306,34 @@ export class FarmView {
 
   private refreshAnimals(s: GameState, season: Season): void {
     const seen = new Set<string>();
+    const anchors = new Map<string, Anchor>();
+    const idsByBuilding = new Map<string, string[]>();
+    for (const a of s.animals) {
+      const ids = idsByBuilding.get(a.buildingId);
+      if (ids) ids.push(a.id); else idsByBuilding.set(a.buildingId, [a.id]);
+    }
+    for (const [bid, ids] of idsByBuilding) {
+      const b = this.buildingById.get(bid);
+      if (b) for (const [id, p] of animalAnchors(b.x, b.y, ids)) anchors.set(id, p);
+    }
     for (const a of s.animals) {
       const b = this.buildingById.get(a.buildingId);
-      if (!b) continue;
+      const anchor = anchors.get(a.id);
+      if (!b || !anchor) continue;
       seen.add(a.id);
       let v = this.animals.get(a.id);
       if (!v) {
-        const [x, y] = wanderPoint(b);
-        const [tx, ty] = wanderPoint(b);
+        const x = anchor.x + (Math.random() * 2 - 1) * WANDER_X;
+        const y = anchor.y + (Math.random() * 2 - 1) * WANDER_Y;
         v = {
           sprite: this.scene.add.image(x, y, textureFor(animalTexture(a), season)).setOrigin(0.5, 1).setDepth(animalDepth(b, y)).setTint(this.tint),
           icon: this.scene.add.image(x, y - 20, 'icon-heart').setOrigin(0.5, 1).setDepth(DEPTH.icon).setVisible(false),
-          buildingId: b.id, tx, ty, wait: Math.random() * 2000,
+          buildingId: b.id, ax: anchor.x, ay: anchor.y, tx: x, ty: y, wait: Math.random() * 2000,
         };
         this.animals.set(a.id, v);
+      } else if (v.ax !== anchor.x || v.ay !== anchor.y) {
+        // a neighbour left: walk over to the new spot
+        v.ax = anchor.x; v.ay = anchor.y; v.tx = anchor.x; v.ty = anchor.y; v.wait = 0;
       }
       const key = textureFor(animalTexture(a), season);
       if (v.sprite.texture.key !== key) v.sprite.setTexture(key);
@@ -309,16 +341,10 @@ export class FarmView {
       v.icon.setVisible(icon !== null);
       if (icon && v.icon.texture.key !== icon) v.icon.setTexture(icon);
     }
+    this.goneAnimals.clear();
+    for (const [id, v] of this.animals) if (!seen.has(id)) this.goneAnimals.set(id, { x: v.sprite.x, y: v.sprite.y - v.sprite.height });
     this.animals.prune(seen);
   }
-}
-
-/** Random foot position on the front tiles of a building's 2x2 footprint (visual only). */
-function wanderPoint(b: Building): [number, number] {
-  const tiles: [number, number][] = [[b.x + 1, b.y], [b.x, b.y + 1], [b.x + 1, b.y + 1]];
-  const [tx, ty] = tiles[Math.floor(Math.random() * tiles.length)];
-  const { sx, sy } = isoToScreen(tx, ty);
-  return [sx + (Math.random() * 12 - 6), sy + 10 + (Math.random() * 4 - 2)];
 }
 
 function animalDepth(b: Building, footY: number): number {
