@@ -16,6 +16,9 @@ export const TEXTURE_KEYS: readonly string[] = [
   ...BREEDS.map((b) => `foal-${b}`),
   'tractor', 'tree',
   ...['water', 'sick', 'egg', 'milk', 'heart', 'hungry', 'lock'].map((i) => `icon-${i}`),
+  // UI icons (DOM overlay)
+  ...['coin', 'star', 'sun', 'rain', 'heat', 'snow', 'hand', 'seed', 'sickle', 'shop', 'parcel', 'upgrade']
+    .map((i) => `icon-${i}`),
 ];
 
 /** Every key that has art: all placeholders (incl. seasonal `key@season` variants) plus manifest PNGs. */

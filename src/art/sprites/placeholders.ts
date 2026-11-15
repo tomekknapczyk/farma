@@ -438,8 +438,59 @@ const ICONS: Record<string, string[]> = {
   ],
 };
 
+// UI icons (HUD, toolbar, shop); drawn into DOM images by src/ui/icons.ts
+const UI_ICONS: Record<string, string[]> = {
+  'icon-coin': [
+    '', '...AAAAAA', '..AyyyyyyA', '.AyywwyyyyA', '.AywyyyyyyA', '.AyyyAAyyyA',
+    '.AyyyAAyyyA', '.AyyyyyyyyA', '.AyyyyyyyoA', '..AyyyyyoA', '...AAAAAA', '',
+  ],
+  'icon-star': [
+    '', '.....AA', '....AyyA', '....AyyA', 'AAAAyyyyAAAA', '.AyyyyyyyyA',
+    '..AyyyyyyA', '...AyyyyA', '..AyyAAyyA', '..AyA..AyA', '.AA......AA', '',
+  ],
+  'icon-sun': [
+    '.....y', '.y...y...y', '..y.ooo.y', '...oyyyo', '..oyyyyyo', 'yyoyyyyyoyy',
+    '..oyyyyyo', '...oyyyo', '..y.ooo.y', '.y...y...y', '.....y', '',
+  ],
+  'icon-rain': [
+    '', '....eeee', '..eewwwwe', '.ewwwwwwwe', 'ewwwwwwwwwe', 'eeeeeeeeeee',
+    '', '..L..L..L', '.L..L..L', '', '..L..L..L', '.L..L..L',
+  ],
+  'icon-snow': [
+    '', '.....w', '..w..w..w', '...w.w.w', '....www', '.wwwwwwwww',
+    '....www', '...w.w.w', '..w..w..w', '.....w', '', '',
+  ],
+  'icon-hand': [
+    '....nn', '...nsn', '...nsnnn', '...nsnsnnn', '.nnnsnsnsn', 'nsnnsssssn',
+    'nssnsssssn', '.nssssssssn', '..nsssssssn', '...nssssssn', '....nssssn', '....nnnnnn',
+  ],
+  'icon-seed': [
+    '', '..gg....gg', '.gGGg..gGGg', '.gGGGggGGGg', '..gggggggg', '.....gg',
+    '.....gg', '..bbbbbbbb', '.bBBBBBBBBb', '.bBBBBBBBBb', '..bbbbbbbb', '',
+  ],
+  'icon-sickle': [
+    '', '..y.y.y.y', '..yAyAyAy', '...yAyAy', '...AyAyA', '....AAA',
+    '....rrr', '....AAA', '...A.A.A', '..A..A..A', '.A...A...A', '',
+  ],
+  'icon-shop': [
+    '', 'rrwwrrwwrrww', 'rrwwrrwwrrww', '.rrwwrrwwrr', '.b........b', '.b.oo.GG..b',
+    '.bBBBBBBBBb', '.bttttttttb', '.bttttttttb', '.bBBBBBBBBb', '.b........b', '',
+  ],
+  'icon-parcel': [
+    '', '', '.b...b...b', 'bbbbbbbbbbb', '.b...b...b', '.b...b...b',
+    'bbbbbbbbbbb', '.b...b...b', '.b...b...b', 'gggggggggggg', 'GgGgGgGgGgGg', '',
+  ],
+  'icon-upgrade': [
+    '', '.....gg', '....gGGg', '...gGGGGg', '..gGGGGGGg', '.gggGGGGggg',
+    '....gGGg', '....gGGg', '....gGGg', '....gGGg', '....gggg', '',
+  ],
+};
+
 function icons(): PixelSprite[] {
-  return Object.entries(ICONS).map(([key, rows]) => fromRows(key, 12, rows));
+  return [
+    ...Object.entries({ ...ICONS, ...UI_ICONS }).map(([key, rows]) => fromRows(key, 12, rows)),
+    fromRows('icon-heat', 12, UI_ICONS['icon-sun'], { y: 'o', o: 'r' }),
+  ];
 }
 
 // ---------------------------------------------------------------------------------------------

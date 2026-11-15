@@ -1,21 +1,38 @@
 import Phaser from 'phaser';
 import { preloadArt, registerAll } from '../art/registry';
 import { MAP_SIZE, START_PARCEL, PARCEL_SIZE } from '../core/config';
-import { harvest, isReady, plant } from '../core/crops';
 import { tileOccupant } from '../core/map';
 import type { GameEvent } from '../core/types';
 import type { GameController } from './controller';
 import { isoToScreen, nearestZoomIndex, screenToIso, TILE_H, TILE_W, ZOOM_STEPS } from './iso';
-import { DEPTH, FarmView } from './render/farmView';
+import { DEPTH, FarmView, type ObjectTap } from './render/farmView';
 
 export type Tool = 'hand' | 'plant' | 'water' | 'harvest' | 'tractor';
-export type ObjectTap = { kind: 'building'; id: string } | { kind: 'animal'; id: string };
+export type { ObjectTap };
+
+/**
+ * Placement mode (fields, buildings, parcels): a ghost footprint follows the pointer, green when
+ * `valid(x, y)`, red otherwise; a tap calls `onPlace(x, y)` with the footprint's top tile. With `snap`
+ * the footprint snaps to a grid of that size (parcels). Normal tool/object events are suppressed.
+ */
+export interface Placement {
+  w: number;
+  h: number;
+  snap?: number;
+  /** optional sprite drawn semi-transparent over the footprint (2x2 buildings) */
+  texture?: string;
+  valid(x: number, y: number): boolean;
+  onPlace(x: number, y: number): void;
+}
+
+export interface FloatPart { text: string; icon?: string }
 
 /** scene.events: (x, y) on a single-pointer tap (< TAP_SLOP px of movement). */
 export const EV_TILE_TAP = 'tileTap';
 /** scene.events: (x, y) for each new tile entered while dragging with a non-hand tool. */
 export const EV_TILE_DRAG = 'tileDrag';
-/** scene.events: (ObjectTap) when a tap lands on a building footprint (animals count as their building). */
+/** scene.events: (ObjectTap) when a tap lands on an animal sprite, a building sprite or a building footprint.
+ * Such taps do not emit EV_TILE_TAP. */
 export const EV_OBJECT_TAP = 'objectTap';
 /** scene.events: (GameEvent) for each core event; the scene drains controller events on every refresh. */
 export const EV_GAME_EVENT = 'gameEvent';
@@ -34,6 +51,10 @@ export class FarmScene extends Phaser.Scene {
   private controller!: GameController;
   private view!: FarmView;
   private highlight!: Phaser.GameObjects.Graphics;
+  private ghost!: Phaser.GameObjects.Graphics;
+  private ghostImg!: Phaser.GameObjects.Image;
+  private placement: Placement | null = null;
+  private ghostTile: { x: number; y: number } | null = null;
   private unsubscribe: (() => void) | null = null;
 
   private pointers = new Map<number, Pt>();
@@ -47,8 +68,12 @@ export class FarmScene extends Phaser.Scene {
     super('farm');
   }
 
-  init(data: { controller: GameController }): void {
+  private onReady: ((scene: FarmScene) => void) | undefined;
+
+  /** `onReady` runs at the end of create(), once scene events and the camera exist (UI mounts there). */
+  init(data: { controller: GameController; onReady?: (scene: FarmScene) => void }): void {
     this.controller = data.controller;
+    this.onReady = data.onReady;
   }
 
   preload(): void {
@@ -59,13 +84,15 @@ export class FarmScene extends Phaser.Scene {
     registerAll(this);
     this.view = new FarmView(this);
     this.highlight = this.add.graphics().setDepth(DEPTH.highlight);
+    this.ghost = this.add.graphics().setDepth(DEPTH.highlight + 1);
+    this.ghostImg = this.add.image(0, 0, 'bld-coop').setOrigin(0.5, 1).setAlpha(0.6).setDepth(DEPTH.highlight + 2)
+      .setVisible(false);
     this.setupCamera();
     this.setupInput();
     this.refresh();
     this.unsubscribe = this.controller.subscribe(() => this.refresh());
-    // TEMP(Task 12): dev-only tap behaviour until the toolbar exists.
-    this.events.on(EV_TILE_TAP, (x: number, y: number) => this.tempTap(x, y));
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.unsubscribe?.());
+    this.onReady?.(this);
   }
 
   update(_time: number, delta: number): void {
@@ -75,16 +102,77 @@ export class FarmScene extends Phaser.Scene {
 
   private refresh(): void {
     this.view.refresh(this.controller.state);
+    if (this.placement) this.drawGhost(this.ghostTile);
     for (const e of this.controller.drainEvents()) this.events.emit(EV_GAME_EVENT, e as GameEvent);
   }
 
-  // TEMP(Task 12): tap on an empty field plants wheat; on a ready field harvests.
-  private tempTap(x: number, y: number): void {
-    const occ = tileOccupant(this.controller.state, x, y);
-    if (occ?.kind !== 'field') return;
-    const f = occ.field;
-    if (f.crop === null) this.controller.act(plant, f.id, 'wheat');
-    else if (isReady(f)) this.controller.act(harvest, f.id);
+  // ---------------------------------------------------------------------------------------------
+  // Placement mode and floating text (used by the DOM UI)
+  // ---------------------------------------------------------------------------------------------
+
+  setPlacement(p: Placement | null): void {
+    this.placement = p;
+    this.ghostTile = null;
+    this.ghost.clear();
+    this.ghostImg.setVisible(false);
+    if (p) this.highlight.clear();
+  }
+
+  get placing(): boolean {
+    return this.placement !== null;
+  }
+
+  private anchorFor(t: { x: number; y: number }, p: Placement): { x: number; y: number } {
+    if (p.snap) return { x: Math.floor(t.x / p.snap) * p.snap, y: Math.floor(t.y / p.snap) * p.snap };
+    return { x: Math.min(t.x, MAP_SIZE - p.w), y: Math.min(t.y, MAP_SIZE - p.h) };
+  }
+
+  private drawGhost(t: { x: number; y: number } | null): void {
+    this.ghostTile = t;
+    this.ghost.clear();
+    this.ghostImg.setVisible(false);
+    const p = this.placement;
+    if (!p || !t) return;
+    const a = this.anchorFor(t, p);
+    const ok = p.valid(a.x, a.y);
+    const color = ok ? 0x6abe30 : 0xac3232;
+    this.ghost.fillStyle(color, 0.45);
+    this.ghost.lineStyle(1, color, 1);
+    for (let dy = 0; dy < p.h; dy++) {
+      for (let dx = 0; dx < p.w; dx++) {
+        const pts = diamondPts(a.x + dx, a.y + dy);
+        this.ghost.fillPoints(pts, true);
+        this.ghost.strokePoints(pts, true);
+      }
+    }
+    if (p.texture) {
+      const { sx, sy } = isoToScreen(a.x, a.y);
+      this.ghostImg.setTexture(p.texture).setPosition(sx, sy + 32).setVisible(true)
+        .setTint(ok ? 0xffffff : 0xff8080);
+    }
+  }
+
+  /** Floating "+3" / "+2 XP" lines rising from tile (x, y). */
+  floatText(x: number, y: number, parts: FloatPart[]): void {
+    const { sx, sy } = isoToScreen(x, y);
+    parts.forEach((part, i) => {
+      const c = this.add.container(sx, sy - 4 - i * 10).setDepth(DEPTH.icon + 10);
+      const txt = this.add.text(0, 0, part.text, {
+        fontFamily: 'system-ui, sans-serif', fontStyle: 'bold', fontSize: '9px', color: '#fbf236',
+        stroke: '#222034', strokeThickness: 2,
+      }).setOrigin(0, 0.5).setResolution(4);
+      c.add(txt);
+      if (part.icon) {
+        const img = this.add.image(-1, 0, part.icon).setOrigin(1, 0.5);
+        img.setScale(Math.min(1, 10 / img.height));
+        c.add(img);
+      }
+      c.x -= txt.width / 2 - (part.icon ? 5 : 0);
+      this.tweens.add({
+        targets: c, y: c.y - 18, alpha: { from: 1, to: 0 }, delay: i * 150, duration: 1400, ease: 'Cubic.easeOut',
+        onComplete: () => c.destroy(),
+      });
+    });
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -132,7 +220,23 @@ export class FarmScene extends Phaser.Scene {
     this.input.on(Phaser.Input.Events.POINTER_MOVE, (p: Phaser.Input.Pointer) => this.onMove(p));
     this.input.on(Phaser.Input.Events.POINTER_UP, (p: Phaser.Input.Pointer) => this.onUp(p));
     this.input.on(Phaser.Input.Events.POINTER_UP_OUTSIDE, (p: Phaser.Input.Pointer) => this.onUp(p));
-    this.input.on(Phaser.Input.Events.GAME_OUT, () => { if (this.pointers.size === 0) this.highlight.clear(); });
+    this.input.on(Phaser.Input.Events.GAME_OUT, () => {
+      if (this.pointers.size === 0) { this.highlight.clear(); if (this.placement) this.drawGhost(null); }
+    });
+    // A lost touchend/pointerup must not leave a stale pointer (which would keep the next touch in pinch mode).
+    const canvas = this.game.canvas;
+    const onCancel = () => this.resetPointers();
+    const onTouchEnd = (e: TouchEvent) => {
+      if (e.touches.length === 0) setTimeout(() => { if (this.pointers.size > 0) this.resetPointers(); }, 0);
+    };
+    canvas.addEventListener('touchcancel', onCancel);
+    canvas.addEventListener('touchend', onTouchEnd);
+    window.addEventListener('blur', onCancel);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      canvas.removeEventListener('touchcancel', onCancel);
+      canvas.removeEventListener('touchend', onTouchEnd);
+      window.removeEventListener('blur', onCancel);
+    });
     this.input.on(Phaser.Input.Events.POINTER_WHEEL,
       (p: Phaser.Input.Pointer, _o: unknown, _dx: number, dy: number) => this.onWheel(p, dy));
   }
@@ -144,19 +248,21 @@ export class FarmScene extends Phaser.Scene {
   }
 
   private showHighlight(t: { x: number; y: number } | null): void {
+    if (this.placement) { this.drawGhost(t); return; }
     this.highlight.clear();
     if (!t) return;
-    const { sx, sy } = isoToScreen(t.x, t.y);
+    const pts = diamondPts(t.x, t.y);
     this.highlight.lineStyle(1, 0xffffff, 0.8);
-    this.highlight.strokePoints([
-      { x: sx, y: sy }, { x: sx + TILE_W / 2, y: sy + TILE_H / 2 },
-      { x: sx, y: sy + TILE_H }, { x: sx - TILE_W / 2, y: sy + TILE_H / 2 },
-    ], true);
+    this.highlight.strokePoints(pts, true);
     this.highlight.fillStyle(0xffffff, 0.15);
-    this.highlight.fillPoints([
-      { x: sx, y: sy }, { x: sx + TILE_W / 2, y: sy + TILE_H / 2 },
-      { x: sx, y: sy + TILE_H }, { x: sx - TILE_W / 2, y: sy + TILE_H / 2 },
-    ], true);
+    this.highlight.fillPoints(pts, true);
+  }
+
+  private resetPointers(): void {
+    if (this.gesture === 'pinch') this.snapZoom();
+    this.pointers.clear();
+    this.gesture = 'none';
+    this.highlight.clear();
   }
 
   private onDown(p: Phaser.Input.Pointer): void {
@@ -179,7 +285,7 @@ export class FarmScene extends Phaser.Scene {
     this.pointers.set(p.id, { x: p.x, y: p.y });
     if (this.gesture === 'pinch') { this.updatePinch(); return; }
     if (this.gesture === 'pending' && Math.hypot(p.x - this.start.x, p.y - this.start.y) >= TAP_SLOP) {
-      this.gesture = this.currentTool === 'hand' ? 'pan' : 'drag';
+      this.gesture = this.currentTool === 'hand' || this.placement ? 'pan' : 'drag';
       this.lastDragTile = -1;
       if (this.gesture === 'drag') this.dragOver(this.start);
     }
@@ -190,6 +296,7 @@ export class FarmScene extends Phaser.Scene {
         this.startScroll.y - (p.y - this.start.y) / cam.zoom,
       );
       this.highlight.clear();
+      if (this.placement && !p.wasTouch) this.drawGhost(this.tileAt(p));
     } else if (this.gesture === 'drag') {
       this.dragOver(p);
     }
@@ -214,7 +321,7 @@ export class FarmScene extends Phaser.Scene {
         this.gesture = 'ended'; // remaining finger does nothing until all are lifted
       }
     } else if (this.gesture === 'pending' && this.pointers.size === 0) {
-      this.tap(this.tileAt(p));
+      this.tap(p);
     }
     if (this.pointers.size === 0) {
       this.gesture = 'none';
@@ -222,14 +329,24 @@ export class FarmScene extends Phaser.Scene {
     }
   }
 
-  private tap(t: { x: number; y: number } | null): void {
-    if (!t) return;
-    this.events.emit(EV_TILE_TAP, t.x, t.y);
-    const occ = tileOccupant(this.controller.state, t.x, t.y);
-    if (occ?.kind === 'building') {
-      const tap: ObjectTap = { kind: 'building', id: occ.building.id };
-      this.events.emit(EV_OBJECT_TAP, tap);
+  private tap(p: Pt): void {
+    const t = this.tileAt(p);
+    if (this.placement) {
+      if (!t) return;
+      const pl = this.placement;
+      const a = this.anchorFor(t, pl);
+      this.drawGhost(t); // touch has no hover: show where the tap landed
+      pl.onPlace(a.x, a.y);
+      return;
     }
+    const w = this.toWorld(p);
+    let obj = this.view.pick(w.x, w.y);
+    if (!obj && t) {
+      const occ = tileOccupant(this.controller.state, t.x, t.y);
+      if (occ?.kind === 'building') obj = { kind: 'building', id: occ.building.id };
+    }
+    if (obj) { this.events.emit(EV_OBJECT_TAP, obj); return; }
+    if (t) this.events.emit(EV_TILE_TAP, t.x, t.y);
   }
 
   private twoPointers(): [Pt, Pt] {
@@ -272,4 +389,12 @@ export class FarmScene extends Phaser.Scene {
     const screen = { x: p.x, y: p.y };
     this.zoomAt(zoom, this.toWorld(screen), screen);
   }
+}
+
+function diamondPts(x: number, y: number): Pt[] {
+  const { sx, sy } = isoToScreen(x, y);
+  return [
+    { x: sx, y: sy }, { x: sx + TILE_W / 2, y: sy + TILE_H / 2 },
+    { x: sx, y: sy + TILE_H }, { x: sx - TILE_W / 2, y: sy + TILE_H / 2 },
+  ];
 }

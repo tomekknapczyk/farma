@@ -12,7 +12,11 @@ import { isoToScreen } from '../iso';
 export const DEPTH = { ground: 0, object: 10, highlight: 800, icon: 1000 };
 export const objectDepth = (x: number, y: number): number => DEPTH.object + (x + y) * 4;
 
+/** A tap on a building (sprite incl. roof, or footprint) or directly on an animal sprite. */
+export type ObjectTap = { kind: 'building'; id: string } | { kind: 'animal'; id: string };
+
 const PARCELS = MAP_SIZE / PARCEL_SIZE;
+const ANIMAL_PICK_SLOP = 3; // world px around an animal sprite that still counts as a hit
 const ANIMAL_SPEED = 10; // world px per second
 const LOCKED_TINT = 0x777777;
 
@@ -95,6 +99,28 @@ export class FarmView {
       v.sprite.setDepth(animalDepth(b, v.sprite.y));
       v.icon.setPosition(v.sprite.x, v.sprite.y - 16);
     }
+  }
+
+  /** Topmost animal (bounds + slop) or building (opaque sprite pixel) at a world point. */
+  pick(wx: number, wy: number): ObjectTap | null {
+    let best: { tap: ObjectTap; depth: number } | null = null;
+    for (const [id, v] of this.animals) {
+      const img = v.sprite;
+      const left = img.x - img.width / 2 - ANIMAL_PICK_SLOP;
+      const top = img.y - img.height - ANIMAL_PICK_SLOP;
+      const inside = wx >= left && wx < img.x + img.width / 2 + ANIMAL_PICK_SLOP && wy >= top && wy < img.y + ANIMAL_PICK_SLOP;
+      if (inside && (!best || img.depth > best.depth)) best = { tap: { kind: 'animal', id }, depth: img.depth };
+    }
+    if (best) return best.tap;
+    for (const [id, v] of this.buildings) {
+      const img = v.bld;
+      const px = Math.floor(wx - (img.x - img.width / 2));
+      const py = Math.floor(wy - (img.y - img.height));
+      if (px < 0 || py < 0 || px >= img.width || py >= img.height) continue;
+      if (this.scene.textures.getPixelAlpha(px, py, img.texture.key) === 0) continue;
+      if (!best || img.depth > best.depth) best = { tap: { kind: 'building', id }, depth: img.depth };
+    }
+    return best?.tap ?? null;
   }
 
   private refreshGround(s: GameState, season: Season): void {
@@ -198,13 +224,13 @@ export class FarmView {
   }
 }
 
-function animalTexture(a: Animal): string {
+export function animalTexture(a: Animal): string {
   const young = a.youngMsLeft > 0;
   if (a.species === 'horse') return `${young ? 'foal' : 'horse'}-${a.breed ?? 'pony'}`;
   return young ? `${a.species}-young` : a.species;
 }
 
-function statusIcon(a: Animal): string | null {
+export function statusIcon(a: Animal): string | null {
   switch (animalStatus(a)) {
     case 'sick': return 'icon-sick';
     case 'ready': return a.species === 'cow' ? 'icon-milk' : 'icon-egg';
