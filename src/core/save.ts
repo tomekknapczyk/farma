@@ -32,7 +32,8 @@ export function deserialize(json: string): GameState | null {
 }
 
 export function loadGame(store: Store, seed: number): GameState {
-  const raw = store.getItem(SAVE_KEY);
+  let raw: string | null;
+  try { raw = store.getItem(SAVE_KEY); } catch { return createInitialState(seed); }
   if (raw === null) return createInitialState(seed);
   const s = deserialize(raw);
   if (s) return s;
@@ -40,8 +41,9 @@ export function loadGame(store: Store, seed: number): GameState {
   return createInitialState(seed);
 }
 
-export function saveGame(store: Store, s: GameState): void {
-  store.setItem(SAVE_KEY, serialize(s));
+/** Never throws; returns false when the store rejects the write (quota, private mode). */
+export function saveGame(store: Store, s: GameState): boolean {
+  try { store.setItem(SAVE_KEY, serialize(s)); return true; } catch { return false; }
 }
 
 /** Uses the UTC calendar date (deterministic across time zones). */

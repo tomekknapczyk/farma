@@ -57,3 +57,19 @@ describe('save', () => {
     expect(exportFileName(new Date('2026-11-15'))).toBe('farma-kopia-2026-11-15.json');
   });
 });
+
+describe('save with failing store', () => {
+  const bad = {
+    getItem: () => { throw new Error('denied'); },
+    setItem: () => { throw new Error('quota'); },
+  };
+  it('saveGame returns false and does not throw', () => {
+    expect(saveGame(bad, createInitialState(1))).toBe(false);
+  });
+  it('saveGame returns true on success', () => {
+    expect(saveGame(fakeStore(), createInitialState(1))).toBe(true);
+  });
+  it('loadGame falls back to a fresh state when getItem throws', () => {
+    expect(loadGame(bad, 1).coins).toBe(50);
+  });
+});

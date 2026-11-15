@@ -1,6 +1,6 @@
 import { MAX_DT_MS } from '../core/config';
 import { createRng } from '../core/rng';
-import { deserialize, exportFileName, loadGame, saveGame, SAVE_KEY } from '../core/save';
+import { deserialize, exportFileName, loadGame, saveGame, serialize, SAVE_KEY } from '../core/save';
 import { tick } from '../core/tick';
 import type { ActionResult, Ctx, GameEvent, GameState } from '../core/types';
 
@@ -14,19 +14,33 @@ export class GameController {
   private subs = new Set<() => void>();
   private sinceSave = 0;
   private sinceNotify = 0;
-  private onVisibility = () => { if (document.visibilityState === 'hidden') this.save(); };
+  private hidden = false;
+  private skipNext = false;
+  private onVisibility = () => {
+    if (document.visibilityState === 'hidden') {
+      this.hidden = true;
+      this.save();
+    } else if (this.hidden) {
+      this.hidden = false;
+      this.skipNext = true;
+    }
+  };
+  private onPageHide = () => { this.save(); };
 
   constructor(
     private store: Pick<Storage, 'getItem' | 'setItem'>,
     private opts: { speed: number; seed: number; debug: boolean },
   ) {
-    // A fresh game is detected by the absence of a save entry (a corrupt one also yields a fresh state,
-    // and is then treated as fresh too, which is fine for debug bonus coins).
-    const hadSave = store.getItem(SAVE_KEY) !== null;
+    // Fresh = no valid save was loaded (missing, corrupt or unreadable entry); debug bonus applies then.
+    let raw: string | null = null;
+    try { raw = store.getItem(SAVE_KEY); } catch { /* treated as fresh */ }
+    const hadValidSave = raw !== null && deserialize(raw) !== null;
     this.state = loadGame(store, opts.seed);
-    this.ctx = { rng: createRng(opts.seed ^ Date.now()), events: [] };
-    if (opts.debug && !hadSave) this.state.coins += 1000;
+    // Deterministic for a given seed (?seed=N); the caller picks a random seed when none is given.
+    this.ctx = { rng: createRng(opts.seed), events: [] };
+    if (opts.debug && !hadValidSave) this.state.coins += 1000;
     document.addEventListener('visibilitychange', this.onVisibility);
+    window.addEventListener('pagehide', this.onPageHide);
   }
 
   act<A extends unknown[]>(fn: (s: GameState, ctx: Ctx, ...a: A) => ActionResult, ...a: A): ActionResult {
@@ -36,6 +50,10 @@ export class GameController {
   }
 
   step(realDtMs: number): void {
+    if (this.hidden) return;
+    if (this.skipNext) { this.skipNext = false; return; }
+    if (!Number.isFinite(realDtMs) || realDtMs <= 0) return;
+    realDtMs = Math.min(realDtMs, MAX_DT_MS);
     let left = realDtMs * this.opts.speed;
     for (let i = 0; i < MAX_CHUNKS && left > 0; i++) {
       const dt = Math.min(left, MAX_DT_MS);
@@ -65,7 +83,7 @@ export class GameController {
   }
 
   exportSave(): void {
-    const blob = new Blob([JSON.stringify(this.state)], { type: 'application/json' });
+    const blob = new Blob([serialize(this.state)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -77,7 +95,8 @@ export class GameController {
   }
 
   async importSave(file: File): Promise<boolean> {
-    const s = deserialize(await file.text());
+    let s;
+    try { s = deserialize(await file.text()); } catch { return false; }
     if (!s) return false;
     this.state = s;
     this.save();
@@ -87,6 +106,7 @@ export class GameController {
 
   dispose(): void {
     document.removeEventListener('visibilitychange', this.onVisibility);
+    window.removeEventListener('pagehide', this.onPageHide);
     this.subs.clear();
   }
 
