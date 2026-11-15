@@ -1,4 +1,5 @@
 import { MAX_DT_MS } from './config';
+import { updateCrops } from './crops';
 import { getSeasonInfo } from './seasons';
 import type { Ctx, GameState } from './types';
 import { updateWeather } from './weather';
@@ -14,5 +15,6 @@ export function tick(s: GameState, ctx: Ctx, dtMs: number): void {
     s.weather.untilMs = s.timeMs; // force a re-roll so weather matches the new season
   }
   updateWeather(s, ctx);
-  // Later tasks add here, in order: updateCrops -> updateAnimals -> updateSafetyNet
+  updateCrops(s, ctx, dt);
+  // Later tasks add here, in order: updateAnimals -> updateSafetyNet
 }
