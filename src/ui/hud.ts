@@ -45,13 +45,14 @@ export function mountHud(root: HTMLElement, controller: GameController, onStorag
     const s = controller.state;
     const xp = xpProgress(s);
     const info = getSeasonInfo(s.timeMs);
-    const pct = Math.round((xp.current / xp.needed) * 100);
-    const key = [s.coins, xp.level, pct, s.weather.kind, info.label, info.season, ...STORAGE_ITEMS.map((i) => s.storage[i])].join('|');
+    const pct = (xp.current / xp.needed) * 100;
+    const pctKey = Math.round(pct * 2) / 2; // 0.5% steps: small gains still re-render
+    const key = [s.coins, xp.level, pctKey, s.weather.kind, info.label, info.season, ...STORAGE_ITEMS.map((i) => s.storage[i])].join('|');
     if (key === last) return;
     last = key;
     coins.textContent = String(s.coins);
     level.textContent = String(xp.level);
-    fill.style.width = `${pct}%`;
+    fill.style.width = `${pct.toFixed(2)}%`;
     weather.src = iconUrl(`icon-${s.weather.kind}`);
     seasonIcon.src = iconUrl(textureFor('tree', info.season));
     season.textContent = info.label;

@@ -82,12 +82,14 @@ Kup nasiona → posadź na zaoranym polu → podlej → poczekaj → zbierz → 
 
 Rośliny w wersji 1 **[do strojenia]**: *(zmienione po teście z dzieckiem 2026-11-15)* rośliny rosną 2× wolniej, plon lub cena 2× większe, żeby monety na minutę z pola zostały podobne.
 
-| Roślina | Level | Pory sadzenia | Czas wzrostu | Cena nasion | Pełny plon | Cena sprzedaży / szt. |
-|---|---|---|---|---|---|---|
-| Pszenica | 1 | wiosna, lato, jesień (ozima) | 60 s (było 30 s) | 5 | 6 (było 3) | 4 |
-| Marchew | 3 (było 2) | wiosna, lato, jesień | 90 s (było 45 s) | 8 | 6 (było 3) | 6 |
-| Kukurydza | 4 | lato | 150 s (było 75 s) | 15 | 8 (było 4) | 9 |
-| Dynia | 6 | lato, jesień | 240 s (było 120 s) | 25 | 2 | 60 (było 30) |
+| Roślina | Level | Pory sadzenia | Czas wzrostu | Cena nasion | Pełny plon | Cena sprzedaży / szt. | XP za zbiór |
+|---|---|---|---|---|---|---|---|
+| Pszenica | 1 | wiosna, lato, jesień (ozima) | 60 s (było 30 s) | 5 | 6 (było 3) | 4 | 2 |
+| Marchew | 3 (było 2) | wiosna, lato, jesień | 90 s (było 45 s) | 8 | 6 (było 3) | 6 | 3 |
+| Kukurydza | 4 | lato | 150 s (było 75 s) | 15 | 8 (było 4) | 9 | 4 |
+| Dynia | 6 | lato, jesień | 240 s (było 120 s) | 25 | 2 | 60 (było 30) | 6 |
+
+XP za zbiór rośnie z wartością rośliny *(zmienione po teście z dzieckiem 2026-11-15)*: wcześniej stałe 2 XP za każdy zbiór, więc na wyższych levelach pasek prawie się nie ruszał.
 
 Pszenica i kukurydza są też paszą dla zwierząt.
 
@@ -100,7 +102,7 @@ Wspólne zasady:
 - **Choroby** **[ustalone]**: zwierzę losowo zachoruje (około 3% szans na każdy cykl produkcji **[do strojenia]**). Chore ma widoczną ikonkę (np. zielona chmurka lub termometr) i **nie produkuje**. Leczy się je przyciskiem **Weterynarz** w panelu zwierzęcia, za monety. Po wyleczeniu od razu wraca do pracy. **Zwierzęta nigdy nie umierają.**
 - **Przychówek** **[ustalone]**: co jakiś czas, jeśli w zagrodzie są co najmniej 2 zwierzęta danego gatunku, jest wolne miejsce i oba są zdrowe, rodzi się młode (np. 10% szans na cykl **[do strojenia]**). Młode przez kilka minut nie produkuje, potem dorasta.
 
-Zwierzęta w wersji 1 **[do strojenia]**: *(zmienione po teście z dzieckiem 2026-11-15)* wolniejsze cykle i wcześniejsze odblokowanie. Napełnienie koryta daje 1 XP (raz na napełnienie).
+Zwierzęta w wersji 1 **[do strojenia]**: *(zmienione po teście z dzieckiem 2026-11-15)* wolniejsze cykle i wcześniejsze odblokowanie. Napełnienie koryta daje 1 XP (raz na napełnienie). Zebranie produktu daje XP zależne od produktu *(zmienione po teście z dzieckiem 2026-11-15)*: jajko 2 XP, mleko 4 XP (było stałe 2).
 
 | Zwierzę | Level | Cena | Pasza | Produkt | Czas | Cena produktu | Weterynarz |
 |---|---|---|---|---|---|---|---|
@@ -138,8 +140,8 @@ Zwierzęta w wersji 1 **[do strojenia]**: *(zmienione po teście z dzieckiem 202
 - Na działkach stawia się pola uprawne, kurnik, obórkę i stajnię (przez sklep, z wyborem miejsca na mapie).
 
 ### 4.9 Levele i XP
-- XP za akcje: sadzenie 1, zbiór 2, napełnienie koryta 1 (raz na napełnienie, nowe po teście z dzieckiem), zebranie produktu zwierzęcia 2, sprzedaż źrebaka 10, zakup budynku lub działki 5 **[do strojenia]**.
-- **Krzywa postępu [ustalone: najpierw szybko, potem wolniej]:** levele 1–3 w pierwszej sesji (około 5–10 minut na level), levele 4–6 w ciągu kolejnych 2–3 sesji, levele 7–10 to po 1–2 sesje na level. Wersja 1 ma **10 leveli** i starcza na około **8–12 godzin gry**, czyli dwa do trzech tygodni przy 30–60 minutach dziennie. W tym czasie dziecko przechodzi mniej więcej cały rok w grze, łącznie z zimą. **[decyzja projektanta, do strojenia]** XP do następnego levelu: 150 · poziom^1,8 (150, 522, 1084, ... 7829 na level 9) *(zmienione po teście z dzieckiem 2026-11-15)*; mały pierwszy krok (level 2 w około 5 minut), potem łagodniej niż geometrycznie, bo tempo XP ogranicza tempo stukania. Bot: level 2 po około 6 min, 3 po 15 min, 6 po około 104 min, 10 po około 640 min.
+- XP za akcje: sadzenie 1, zbiór zależny od rośliny (pszenica 2, marchew 3, kukurydza 4, dynia 6; było stałe 2) *(zmienione po teście z dzieckiem 2026-11-15)*, napełnienie koryta 1 (raz na napełnienie, nowe po teście z dzieckiem), zebranie produktu zwierzęcia (jajko 2, mleko 4; było stałe 2), sprzedaż źrebaka 10, zakup budynku lub działki 5 **[do strojenia]**.
+- **Krzywa postępu [ustalone: najpierw szybko, potem wolniej]:** levele 1–3 w pierwszej sesji (około 5–10 minut na level), levele 4–6 w ciągu kolejnych 2–3 sesji, levele 7–10 to po 1–2 sesje na level. Wersja 1 ma **10 leveli** i starcza na około **8–12 godzin gry**, czyli dwa do trzech tygodni przy 30–60 minutach dziennie. W tym czasie dziecko przechodzi mniej więcej cały rok w grze, łącznie z zimą. **[decyzja projektanta, do strojenia]** XP do następnego levelu: 150 · poziom^1,8 (150, 522, 1084, ... 7829 na level 9) *(zmienione po teście z dzieckiem 2026-11-15)*; mały pierwszy krok (level 2 w około 5 minut), potem łagodniej niż geometrycznie, bo tempo XP ogranicza tempo stukania. Po zmianie XP za zbiór i produkty (krzywa bez zmian) bot: level 2 po około 6 min, 3 po 15 min, 6 po około 98 min, 10 po około 555 min. Pasek XP w interfejsie wypełnia się płynnie (ułamki procenta), żeby pojedyncza akcja było widać.
 - Awans to krótka animacja, „Poziom N!” i obrazek tego, co się odblokowało.
 
 Plan odblokowań (wersja 1): *(zmienione po teście z dzieckiem 2026-11-15)*

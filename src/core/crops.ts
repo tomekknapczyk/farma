@@ -65,8 +65,8 @@ export function harvest(s: GameState, ctx: Ctx, fieldId: string): ActionResult {
   const def = CROPS[f.crop];
   const qty = f.watered ? def.yield : Math.max(1, Math.round(def.yield * LOW_YIELD_FACTOR));
   s.storage[f.crop] += qty;
-  addXp(s, ctx, XP.harvest);
-  ctx.events.push({ type: 'gain', x: f.x, y: f.y, item: f.crop, qty, xp: XP.harvest });
+  addXp(s, ctx, def.xp);
+  ctx.events.push({ type: 'gain', x: f.x, y: f.y, item: f.crop, qty, xp: def.xp });
   f.crop = null;
   f.growthMs = 0;
   f.watered = false;

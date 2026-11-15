@@ -8,19 +8,22 @@ export const START_FIELDS: ReadonlyArray<readonly [number, number]> = [[5, 5], [
 
 export interface CropDef {
   level: number; seasons: Season[]; growMs: number; seed: number; yield: number; price: number; feed: number;
+  /** XP per harvest (scales with value; replaced the flat XP.harvest after the 2026-11-15 playtest) */
+  xp: number;
 }
 export const CROPS: Record<CropId, CropDef> = {
-  wheat: { level: 1, seasons: ['spring', 'summer', 'autumn'], growMs: 60000, seed: 5, yield: 6, price: 4, feed: 1 },
-  carrot: { level: 3, seasons: ['spring', 'summer', 'autumn'], growMs: 90000, seed: 8, yield: 6, price: 6, feed: 1 },
-  corn: { level: 4, seasons: ['summer'], growMs: 150000, seed: 15, yield: 8, price: 9, feed: 2 },
-  pumpkin: { level: 6, seasons: ['summer', 'autumn'], growMs: 240000, seed: 25, yield: 2, price: 60, feed: 0 },
+  wheat: { level: 1, seasons: ['spring', 'summer', 'autumn'], growMs: 60000, seed: 5, yield: 6, price: 4, feed: 1, xp: 2 },
+  carrot: { level: 3, seasons: ['spring', 'summer', 'autumn'], growMs: 90000, seed: 8, yield: 6, price: 6, feed: 1, xp: 3 },
+  corn: { level: 4, seasons: ['summer'], growMs: 150000, seed: 15, yield: 8, price: 9, feed: 2, xp: 4 },
+  pumpkin: { level: 6, seasons: ['summer', 'autumn'], growMs: 240000, seed: 25, yield: 2, price: 60, feed: 0, xp: 6 },
 };
 export const LOW_YIELD_FACTOR = 0.4; // yield = max(1, round(yield * 0.4))
 
-export interface ProductDef { price: number; }
+/** xp: per collected product (replaced the flat XP.collect) */
+export interface ProductDef { price: number; xp: number; }
 export const PRODUCTS: Record<ProductId, ProductDef> = {
-  egg: { price: 8 },
-  milk: { price: 25 },
+  egg: { price: 8, xp: 2 },
+  milk: { price: 25, xp: 4 },
 };
 
 export interface SpeciesDef {
@@ -67,11 +70,14 @@ export function parcelCost(bought: number): number {
 
 export const TRACTOR = { level: 7, cost: 500, rowLength: 4 };
 
-export const XP = { feed: 1, plant: 1, harvest: 2, collect: 2, treat: 1, sellHorse: 10, buy: 5 };
+// harvest/collect XP live in CROPS[crop].xp / PRODUCTS[product].xp
+export const XP = { feed: 1, plant: 1, treat: 1, sellHorse: 10, buy: 5 };
 export const MAX_LEVEL = 10;
 // retuned by scripts/sim.ts after the playtest (2026-11-15; tap-limited bot, 40 taps/min). Shape changed from
 // 500 * 1.45^(l-1) to 150 * l^1.8: small first step (level 2 in ~5 min), flatter later steps because the XP rate is
-// tap-capped (~60 xp/min). Bot: lvl2 ~6 min, lvl3 ~15 min, lvl6 ~104 min, lvl10 ~640 min.
+// tap-capped (~60 xp/min). Tune 3 (2026-11-15): harvest/collect XP now scales with value (CROPS/PRODUCTS .xp), so
+// the same curve is ~14% faster at the top: bot lvl2 ~6 min, lvl3 ~15, lvl6 ~98, lvl10 ~556. A gentler exponent
+// (1.75 / 1.7) would drop lvl6 below 95 and lvl10 below 480, so the curve is unchanged.
 export function xpToNext(level: number): number {
   return Math.round(150 * Math.pow(level, 1.8));
 }
