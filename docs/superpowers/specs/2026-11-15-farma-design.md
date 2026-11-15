@@ -80,14 +80,14 @@ Kup nasiona → posadź na zaoranym polu → podlej → poczekaj → zbierz → 
 - Deszcz podlewa wszystkie pola sam (patrz 4.5).
 - Każda roślina ma pory roku, w których można ją sadzić. Poza nimi przycisk sadzenia jej nie pokazuje. Posadzona roślina rośnie dalej po zmianie pory. Zimą nie sadzi się nic. **[ustalone ogólnie, szczegóły: decyzja projektanta]**
 
-Rośliny w wersji 1 **[do strojenia]**:
+Rośliny w wersji 1 **[do strojenia]**: *(zmienione po teście z dzieckiem 2026-11-15)* rośliny rosną 2× wolniej, plon lub cena 2× większe, żeby monety na minutę z pola zostały podobne.
 
 | Roślina | Level | Pory sadzenia | Czas wzrostu | Cena nasion | Pełny plon | Cena sprzedaży / szt. |
 |---|---|---|---|---|---|---|
-| Pszenica | 1 | wiosna, lato, jesień (ozima) | 30 s | 5 | 3 | 4 |
-| Marchew | 2 | wiosna, lato, jesień | 45 s | 8 | 3 | 6 |
-| Kukurydza | 4 | lato | 75 s | 15 | 4 | 9 |
-| Dynia | 6 | lato, jesień | 120 s | 25 | 2 | 30 |
+| Pszenica | 1 | wiosna, lato, jesień (ozima) | 60 s (było 30 s) | 5 | 6 (było 3) | 4 |
+| Marchew | 3 (było 2) | wiosna, lato, jesień | 90 s (było 45 s) | 8 | 6 (było 3) | 6 |
+| Kukurydza | 4 | lato | 150 s (było 75 s) | 15 | 8 (było 4) | 9 |
+| Dynia | 6 | lato, jesień | 240 s (było 120 s) | 25 | 2 | 60 (było 30) |
 
 Pszenica i kukurydza są też paszą dla zwierząt.
 
@@ -100,15 +100,15 @@ Wspólne zasady:
 - **Choroby** **[ustalone]**: zwierzę losowo zachoruje (około 3% szans na każdy cykl produkcji **[do strojenia]**). Chore ma widoczną ikonkę (np. zielona chmurka lub termometr) i **nie produkuje**. Leczy się je przyciskiem **Weterynarz** w panelu zwierzęcia, za monety. Po wyleczeniu od razu wraca do pracy. **Zwierzęta nigdy nie umierają.**
 - **Przychówek** **[ustalone]**: co jakiś czas, jeśli w zagrodzie są co najmniej 2 zwierzęta danego gatunku, jest wolne miejsce i oba są zdrowe, rodzi się młode (np. 10% szans na cykl **[do strojenia]**). Młode przez kilka minut nie produkuje, potem dorasta.
 
-Zwierzęta w wersji 1 **[do strojenia]**:
+Zwierzęta w wersji 1 **[do strojenia]**: *(zmienione po teście z dzieckiem 2026-11-15)* wolniejsze cykle i wcześniejsze odblokowanie. Napełnienie koryta daje 1 XP (raz na napełnienie).
 
 | Zwierzę | Level | Cena | Pasza | Produkt | Czas | Cena produktu | Weterynarz |
 |---|---|---|---|---|---|---|---|
-| Kura | 3 | 40 | 1 pszenica | jajko | 40 s | 8 | 15 |
-| Krowa | 5 | 150 | 2 pszenica lub 1 kukurydza | mleko | 90 s | 25 | 40 |
+| Kura | 2 (było 3) | 40 | 1 pszenica | jajko | 90 s (było 40 s) | 8 | 15 |
+| Krowa | 3 (było 5) | 150 | 2 pszenica lub 1 kukurydza | mleko | 150 s (było 90 s) | 25 | 40 |
 
 ### 4.4 Konie **[ustalone: ważne]**
-- Osobna hodowla w **stajni z padokiem**, odblokowana na levelu 7 **[do strojenia]**.
+- Osobna hodowla w **stajni z padokiem**, odblokowana na levelu 5 (było 7) **[do strojenia]** *(zmienione po teście z dzieckiem 2026-11-15)*.
 - **Rasy w wersji 1:** 3 rasy różniące się wyglądem i ceną, np. **Kuc (gniady), Arab (siwy), Fryz (kary)** **[decyzja projektanta: wybór ras]**. Kolejne rasy odblokowują się z levelem.
 - Konie nie dają produktu. Jedzą paszę (marchew lub kukurydzę), chorują jak inne zwierzęta i rodzą źrebaki według zasad przychówku.
 - **Źrebak** dziedziczy rasę rodziców. Przy dwóch różnych rasach losowo jedną z nich **[decyzja projektanta]**. Po dorośnięciu (kilka minut) zostaje w stajni albo można go **sprzedać** za dobrą cenę. Sprzedaż źrebaków to główny zarobek z koni. **[ustalone]**
@@ -131,29 +131,29 @@ Zwierzęta w wersji 1 **[do strojenia]**:
 - **Siatka bezpieczeństwa:** jeśli gracz ma mniej monet niż kosztują najtańsze nasiona i nie ma nic do sprzedania ani nic rosnącego, dostaje darmową garść nasion pszenicy, a zimą (gdy nie da się sadzić) zamiast nasion 5 pszenicy do magazynu i 20 monet. Dzięki temu zwierzęta mają paszę i jest co sprzedać. **[decyzja projektanta]** Zima nie może być godziną bez zajęcia: gracz ma zwierzęta, konie i zakupy działek, a w kolejnych etapach dojdzie szklarnia. Wynika to z wymogu „straty, ale do odrobienia”.
 
 ### 4.7 Maszyny
-- Wersja 1: **jedna maszyna, traktor** (level 8 **[do strojenia]**). Podlewa i zbiera cały rząd 4 pól jednym stuknięciem. **[decyzja projektanta: wybór maszyny]**
+- Wersja 1: **jedna maszyna, traktor** (level 7, było 8 **[do strojenia]** *(zmienione po teście z dzieckiem 2026-11-15)). Podlewa i zbiera cały rząd 4 pól jednym stuknięciem. **[decyzja projektanta: wybór maszyny]**
 
 ### 4.8 Działki
 - Mapa ma stały rozmiar (np. 16×16 kafelków), ale na starcie odblokowany jest tylko mały fragment. Kolejne działki (np. 4×4) **kupuje się za monety**, a część wymaga levelu. Zablokowane działki są przyciemnione i mają ikonę kłódki z ceną.
 - Na działkach stawia się pola uprawne, kurnik, obórkę i stajnię (przez sklep, z wyborem miejsca na mapie).
 
 ### 4.9 Levele i XP
-- XP za akcje: sadzenie 1, zbiór 2, zebranie produktu zwierzęcia 2, sprzedaż źrebaka 10, zakup budynku lub działki 5 **[do strojenia]**.
-- **Krzywa postępu [ustalone: najpierw szybko, potem wolniej]:** levele 1–3 w pierwszej sesji (około 5–10 minut na level), levele 4–6 w ciągu kolejnych 2–3 sesji, levele 7–10 to po 1–2 sesje na level. Wersja 1 ma **10 leveli** i starcza na około **8–12 godzin gry**, czyli dwa do trzech tygodni przy 30–60 minutach dziennie. W tym czasie dziecko przechodzi mniej więcej cały rok w grze, łącznie z zimą. **[decyzja projektanta, do strojenia]** XP do następnego levelu rośnie mniej więcej geometrycznie (×1,6 na level).
+- XP za akcje: sadzenie 1, zbiór 2, napełnienie koryta 1 (raz na napełnienie, nowe po teście z dzieckiem), zebranie produktu zwierzęcia 2, sprzedaż źrebaka 10, zakup budynku lub działki 5 **[do strojenia]**.
+- **Krzywa postępu [ustalone: najpierw szybko, potem wolniej]:** levele 1–3 w pierwszej sesji (około 5–10 minut na level), levele 4–6 w ciągu kolejnych 2–3 sesji, levele 7–10 to po 1–2 sesje na level. Wersja 1 ma **10 leveli** i starcza na około **8–12 godzin gry**, czyli dwa do trzech tygodni przy 30–60 minutach dziennie. W tym czasie dziecko przechodzi mniej więcej cały rok w grze, łącznie z zimą. **[decyzja projektanta, do strojenia]** XP do następnego levelu: 150 · poziom^1,8 (150, 522, 1084, ... 7829 na level 9) *(zmienione po teście z dzieckiem 2026-11-15)*; mały pierwszy krok (level 2 w około 5 minut), potem łagodniej niż geometrycznie, bo tempo XP ogranicza tempo stukania. Bot: level 2 po około 6 min, 3 po 15 min, 6 po około 104 min, 10 po około 640 min.
 - Awans to krótka animacja, „Poziom N!” i obrazek tego, co się odblokowało.
 
-Plan odblokowań (wersja 1):
+Plan odblokowań (wersja 1): *(zmienione po teście z dzieckiem 2026-11-15)*
 
 | Lvl | Odblokowanie |
 |---|---|
 | 1 | Pszenica, 4 pola |
-| 2 | Marchew, możliwość kupna działek |
-| 3 | Kurnik, kury |
+| 2 | Kurnik, kury, możliwość kupna działek |
+| 3 | Marchew, obórka, krowy |
 | 4 | Kukurydza |
-| 5 | Obórka, krowy |
+| 5 | Stajnia, konie: Kuc |
 | 6 | Dynia |
-| 7 | Stajnia, konie: Kuc |
-| 8 | Traktor, koń Arab |
+| 7 | Traktor |
+| 8 | Koń Arab |
 | 9 | Rozbudowa zagród |
 | 10 | Koń Fryz |
 
