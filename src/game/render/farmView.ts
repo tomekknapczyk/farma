@@ -1,0 +1,228 @@
+import Phaser from 'phaser';
+import { textureFor } from '../../art/registry';
+import { animalStatus, troughCap } from '../../core/animals';
+import { MAP_SIZE, PARCEL_SIZE } from '../../core/config';
+import { cropStage, isReady } from '../../core/crops';
+import { isTileUnlocked, parcelOf } from '../../core/map';
+import { getSeasonInfo } from '../../core/seasons';
+import type { Animal, Building, GameState, Season } from '../../core/types';
+import { isoToScreen } from '../iso';
+
+/** Ground is flat (depth 0); objects sort by (x + y); highlight and icons float above. */
+export const DEPTH = { ground: 0, object: 10, highlight: 800, icon: 1000 };
+export const objectDepth = (x: number, y: number): number => DEPTH.object + (x + y) * 4;
+
+const PARCELS = MAP_SIZE / PARCEL_SIZE;
+const ANIMAL_SPEED = 10; // world px per second
+const LOCKED_TINT = 0x777777;
+
+interface AnimalView {
+  sprite: Phaser.GameObjects.Image;
+  icon: Phaser.GameObjects.Image;
+  buildingId: string;
+  tx: number; ty: number; // wander target (world px)
+  wait: number; // ms left standing still
+}
+
+function tileHash(x: number, y: number): number {
+  return ((x * 73856093) ^ (y * 19349663)) >>> 0;
+}
+
+export class FarmView {
+  private tiles: Phaser.GameObjects.Image[] = [];
+  private locks: Phaser.GameObjects.Image[] = [];
+  private trees: { img: Phaser.GameObjects.Image; x: number; y: number }[] = [];
+  private crops = new Map<string, Phaser.GameObjects.Image>();
+  private waterIcons = new Map<string, Phaser.GameObjects.Image>();
+  private buildings = new Map<string, { bld: Phaser.GameObjects.Image; trough: Phaser.GameObjects.Image }>();
+  private animals = new Map<string, AnimalView>();
+  private buildingById = new Map<string, Building>();
+
+  constructor(private scene: Phaser.Scene) {
+    for (let y = 0; y < MAP_SIZE; y++) {
+      for (let x = 0; x < MAP_SIZE; x++) {
+        const { sx, sy } = isoToScreen(x, y);
+        this.tiles.push(scene.add.image(sx, sy, 'tile-grass').setOrigin(0.5, 0).setDepth(DEPTH.ground));
+        // scenery: a few trees on tiles that start locked, away from the parcel centre lock icon
+        const lx = x % PARCEL_SIZE;
+        const ly = y % PARCEL_SIZE;
+        const nearCentre = (lx === 1 || lx === 2) && (ly === 1 || ly === 2);
+        if (!nearCentre && tileHash(x, y) % 7 === 0) {
+          const img = scene.add.image(sx, sy + 12, 'tree').setOrigin(0.5, 1).setDepth(objectDepth(x, y));
+          this.trees.push({ img, x, y });
+        }
+      }
+    }
+    for (let p = 0; p < PARCELS * PARCELS; p++) {
+      const cx = (p % PARCELS) * PARCEL_SIZE + PARCEL_SIZE / 2;
+      const cy = Math.floor(p / PARCELS) * PARCEL_SIZE + PARCEL_SIZE / 2;
+      const { sx, sy } = isoToScreen(cx, cy);
+      this.locks.push(scene.add.image(sx, sy, 'icon-lock').setDepth(DEPTH.icon));
+    }
+  }
+
+  refresh(s: GameState): void {
+    const season = getSeasonInfo(s.timeMs).season;
+    this.refreshGround(s, season);
+    this.refreshFields(s);
+    this.refreshBuildings(s);
+    this.refreshAnimals(s);
+  }
+
+  /** Per-frame animation (animal wandering). */
+  update(deltaMs: number): void {
+    const dt = Math.min(deltaMs, 100) / 1000;
+    for (const v of this.animals.values()) {
+      const b = this.buildingById.get(v.buildingId);
+      if (!b) continue;
+      if (v.wait > 0) {
+        v.wait -= deltaMs;
+      } else {
+        const dx = v.tx - v.sprite.x;
+        const dy = v.ty - v.sprite.y;
+        const dist = Math.hypot(dx, dy);
+        const stepLen = ANIMAL_SPEED * dt;
+        if (dist <= stepLen) {
+          v.sprite.setPosition(v.tx, v.ty);
+          v.wait = 1000 + Math.random() * 3000;
+          [v.tx, v.ty] = wanderPoint(b);
+        } else {
+          v.sprite.x += (dx / dist) * stepLen;
+          v.sprite.y += (dy / dist) * stepLen;
+          v.sprite.setFlipX(dx > 0); // sprites face left
+        }
+      }
+      v.sprite.setDepth(animalDepth(b, v.sprite.y));
+      v.icon.setPosition(v.sprite.x, v.sprite.y - 16);
+    }
+  }
+
+  private refreshGround(s: GameState, season: Season): void {
+    const fieldAt = new Map(s.fields.map((f) => [f.y * MAP_SIZE + f.x, f]));
+    for (let y = 0; y < MAP_SIZE; y++) {
+      for (let x = 0; x < MAP_SIZE; x++) {
+        const i = y * MAP_SIZE + x;
+        const f = fieldAt.get(i);
+        let key: string;
+        if (f) key = textureFor(f.watered ? 'field-wet' : 'field-dry', season);
+        else if (isTileUnlocked(s, x, y)) key = textureFor('tile-grass', season);
+        else key = 'tile-locked';
+        if (this.tiles[i].texture.key !== key) this.tiles[i].setTexture(key);
+      }
+    }
+    this.locks.forEach((img, p) => img.setVisible(!s.parcels[p]));
+    const treeKey = textureFor('tree', season);
+    for (const t of this.trees) {
+      const unlocked = s.parcels[parcelOf(t.x, t.y)];
+      // trees only decorate locked land; they disappear when the parcel is bought
+      t.img.setVisible(!unlocked);
+      if (t.img.texture.key !== treeKey) t.img.setTexture(treeKey);
+      t.img.setTint(LOCKED_TINT);
+    }
+  }
+
+  private refreshFields(s: GameState): void {
+    const seen = new Set<string>();
+    for (const f of s.fields) {
+      const { sx, sy } = isoToScreen(f.x, f.y);
+      if (f.crop !== null) {
+        seen.add(f.id);
+        const key = `crop-${f.crop}-${cropStage(f)}`;
+        let img = this.crops.get(f.id);
+        if (!img) {
+          img = this.scene.add.image(sx, sy + 16, key).setOrigin(0.5, 1).setDepth(objectDepth(f.x, f.y));
+          this.crops.set(f.id, img);
+        } else if (img.texture.key !== key) img.setTexture(key);
+      }
+      const needsWater = f.crop !== null && !f.watered && !isReady(f);
+      let drop = this.waterIcons.get(f.id);
+      if (needsWater && !drop) {
+        drop = this.scene.add.image(sx, sy + 2, 'icon-water').setOrigin(0.5, 1).setDepth(DEPTH.icon);
+        this.waterIcons.set(f.id, drop);
+      }
+      drop?.setVisible(needsWater);
+    }
+    for (const [id, img] of this.crops) if (!seen.has(id)) { img.destroy(); this.crops.delete(id); }
+    const fieldIds = new Set(s.fields.map((f) => f.id));
+    for (const [id, img] of this.waterIcons) if (!fieldIds.has(id)) { img.destroy(); this.waterIcons.delete(id); }
+  }
+
+  private refreshBuildings(s: GameState): void {
+    this.buildingById = new Map(s.buildings.map((b) => [b.id, b]));
+    for (const b of s.buildings) {
+      const { sx, sy } = isoToScreen(b.x, b.y);
+      const fill = b.trough / troughCap(b);
+      const troughKey = fill <= 0 ? 'trough-empty' : fill < 0.5 ? 'trough-low' : 'trough-full';
+      let v = this.buildings.get(b.id);
+      if (!v) {
+        const depth = objectDepth(b.x + 1, b.y + 1);
+        v = {
+          bld: this.scene.add.image(sx, sy + 32, `bld-${b.kind}`).setOrigin(0.5, 1).setDepth(depth),
+          trough: this.scene.add.image(sx - 16, sy + 23, troughKey).setOrigin(0.5, 1).setDepth(depth + 1),
+        };
+        this.buildings.set(b.id, v);
+      }
+      if (v.trough.texture.key !== troughKey) v.trough.setTexture(troughKey);
+    }
+    for (const [id, v] of this.buildings) {
+      if (!this.buildingById.has(id)) { v.bld.destroy(); v.trough.destroy(); this.buildings.delete(id); }
+    }
+  }
+
+  private refreshAnimals(s: GameState): void {
+    const seen = new Set<string>();
+    for (const a of s.animals) {
+      const b = this.buildingById.get(a.buildingId);
+      if (!b) continue;
+      seen.add(a.id);
+      let v = this.animals.get(a.id);
+      if (!v) {
+        const [x, y] = wanderPoint(b);
+        const [tx, ty] = wanderPoint(b);
+        v = {
+          sprite: this.scene.add.image(x, y, animalTexture(a)).setOrigin(0.5, 1).setDepth(animalDepth(b, y)),
+          icon: this.scene.add.image(x, y - 16, 'icon-heart').setOrigin(0.5, 1).setDepth(DEPTH.icon).setVisible(false),
+          buildingId: b.id, tx, ty, wait: Math.random() * 2000,
+        };
+        this.animals.set(a.id, v);
+      }
+      const key = animalTexture(a);
+      if (v.sprite.texture.key !== key) v.sprite.setTexture(key);
+      const icon = statusIcon(a);
+      v.icon.setVisible(icon !== null);
+      if (icon && v.icon.texture.key !== icon) v.icon.setTexture(icon);
+    }
+    for (const [id, v] of this.animals) {
+      if (!seen.has(id)) { v.sprite.destroy(); v.icon.destroy(); this.animals.delete(id); }
+    }
+  }
+}
+
+function animalTexture(a: Animal): string {
+  const young = a.youngMsLeft > 0;
+  if (a.species === 'horse') return `${young ? 'foal' : 'horse'}-${a.breed ?? 'pony'}`;
+  return young ? `${a.species}-young` : a.species;
+}
+
+function statusIcon(a: Animal): string | null {
+  switch (animalStatus(a)) {
+    case 'sick': return 'icon-sick';
+    case 'ready': return a.species === 'cow' ? 'icon-milk' : 'icon-egg';
+    case 'hungry': return 'icon-hungry';
+    default: return null;
+  }
+}
+
+/** Random foot position on the front tiles of a building's 2x2 footprint (visual only). */
+function wanderPoint(b: Building): [number, number] {
+  const tiles: [number, number][] = [[b.x + 1, b.y], [b.x, b.y + 1], [b.x + 1, b.y + 1]];
+  const [tx, ty] = tiles[Math.floor(Math.random() * tiles.length)];
+  const { sx, sy } = isoToScreen(tx, ty);
+  return [sx + (Math.random() * 12 - 6), sy + 10 + (Math.random() * 4 - 2)];
+}
+
+function animalDepth(b: Building, footY: number): number {
+  const base = objectDepth(b.x + 1, b.y + 1) + 2;
+  const top = isoToScreen(b.x, b.y).sy;
+  return base + Phaser.Math.Clamp((footY - top) / 32, 0, 0.99);
+}
