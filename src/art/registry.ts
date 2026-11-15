@@ -1,7 +1,9 @@
 import type Phaser from 'phaser';
 import type { Season } from '../core/types';
 import { drawSpriteToCanvas } from './pixelmap';
+import type { PixelSprite } from './pixelmap';
 import { PLACEHOLDERS } from './sprites/placeholders';
+import { ROUND1 } from './sprites/round1';
 
 const CROPS = ['wheat', 'carrot', 'corn', 'pumpkin'];
 const BREEDS = ['pony', 'arabian', 'friesian'];
@@ -21,8 +23,14 @@ export const TEXTURE_KEYS: readonly string[] = [
     .map((i) => `icon-${i}`),
 ];
 
-/** Every key that has art: all placeholders (incl. seasonal `key@season` variants) plus manifest PNGs. */
-const known = new Set<string>(Object.keys(PLACEHOLDERS));
+/** All pixel-map art: placeholders, overridden key by key by the real art rounds (registered later). */
+export const SPRITES: Record<string, PixelSprite> = {
+  ...PLACEHOLDERS,
+  ...Object.fromEntries(ROUND1.map((sp) => [sp.key, sp])),
+};
+
+/** Every key that has art: all sprites (incl. seasonal `key@season` variants) plus manifest PNGs. */
+const known = new Set<string>(Object.keys(SPRITES));
 
 export function textureFor(base: string, season: Season): string {
   const seasonal = `${base}@${season}`;
@@ -51,7 +59,7 @@ export function preloadArt(scene: Phaser.Scene): void {
 
 /** Pixel-maps → canvas textures, except keys already loaded from PNG. Call from `create()`. */
 export function registerAll(scene: Phaser.Scene): void {
-  for (const sp of Object.values(PLACEHOLDERS)) {
+  for (const sp of Object.values(SPRITES)) {
     if (scene.textures.exists(sp.key)) continue;
     const canvas = document.createElement('canvas');
     drawSpriteToCanvas(sp, canvas);

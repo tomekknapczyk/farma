@@ -1,6 +1,6 @@
 /** Pixel sprites as DOM images (scaled with nearest-neighbour, cached per key+scale). */
 import { drawSpriteToCanvas } from '../art/pixelmap';
-import { PLACEHOLDERS } from '../art/sprites/placeholders';
+import { SPRITES } from '../art/registry';
 import type { ItemId } from '../core/types';
 
 const cache = new Map<string, string>();
@@ -9,7 +9,7 @@ export function iconUrl(key: string, scale = 3): string {
   const id = `${key}@${scale}`;
   const hit = cache.get(id);
   if (hit !== undefined) return hit;
-  const sp = PLACEHOLDERS[key] ?? PLACEHOLDERS['icon-lock'];
+  const sp = SPRITES[key] ?? SPRITES['icon-lock'];
   const src = document.createElement('canvas');
   drawSpriteToCanvas(sp, src);
   const out = document.createElement('canvas');

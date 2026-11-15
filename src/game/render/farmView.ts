@@ -23,6 +23,7 @@ const ANIMAL_SPEED = 10; // world px per second
 const LOCKED_TINT = 0x777777;
 const SNOW_TILE = 'tile-grass@winter'; // white diamond reused as the snow/frost overlay
 const SNOW_ON_GROUND = 0.8;
+const SNOW_ON_LOCKED = 0.45; // lighter, so locked land stays darker than owned land in winter
 const FROST_ON_FIELD = 0.4;
 const DEPTH_SNOW = 1;
 
@@ -84,9 +85,9 @@ export class FarmView {
     this.tint = tint;
     this.snow = snow;
     this.refreshGround(s, season);
-    this.refreshFields(s);
+    this.refreshFields(s, season);
     this.refreshBuildings(s);
-    this.refreshAnimals(s);
+    this.refreshAnimals(s, season);
     if (tintChanged) this.applyTintToAll();
     if (snowChanged || this.snow > 0) this.applySnow(s);
   }
@@ -104,7 +105,8 @@ export class FarmView {
   private applySnow(s: GameState): void {
     const fieldAt = new Set(s.fields.map((f) => f.y * MAP_SIZE + f.x));
     this.snowTiles.forEach((img, i) => {
-      const a = this.snow * (fieldAt.has(i) ? FROST_ON_FIELD : SNOW_ON_GROUND);
+      const unlocked = isTileUnlocked(s, i % MAP_SIZE, Math.floor(i / MAP_SIZE));
+      const a = this.snow * (fieldAt.has(i) ? FROST_ON_FIELD : unlocked ? SNOW_ON_GROUND : SNOW_ON_LOCKED);
       img.setAlpha(a).setVisible(a > 0);
     });
     for (const v of this.buildings.values()) v.roof.setAlpha(this.snow).setVisible(this.snow > 0);
@@ -184,13 +186,13 @@ export class FarmView {
     }
   }
 
-  private refreshFields(s: GameState): void {
+  private refreshFields(s: GameState, season: Season): void {
     const seen = new Set<string>();
     for (const f of s.fields) {
       const { sx, sy } = isoToScreen(f.x, f.y);
       if (f.crop !== null) {
         seen.add(f.id);
-        const key = `crop-${f.crop}-${cropStage(f)}`;
+        const key = textureFor(`crop-${f.crop}-${cropStage(f)}`, season);
         let img = this.crops.get(f.id);
         if (!img) {
           img = this.scene.add.image(sx, sy + 16, key).setOrigin(0.5, 1).setDepth(objectDepth(f.x, f.y)).setTint(this.tint);
@@ -234,7 +236,7 @@ export class FarmView {
     }
   }
 
-  private refreshAnimals(s: GameState): void {
+  private refreshAnimals(s: GameState, season: Season): void {
     const seen = new Set<string>();
     for (const a of s.animals) {
       const b = this.buildingById.get(a.buildingId);
@@ -245,13 +247,13 @@ export class FarmView {
         const [x, y] = wanderPoint(b);
         const [tx, ty] = wanderPoint(b);
         v = {
-          sprite: this.scene.add.image(x, y, animalTexture(a)).setOrigin(0.5, 1).setDepth(animalDepth(b, y)).setTint(this.tint),
+          sprite: this.scene.add.image(x, y, textureFor(animalTexture(a), season)).setOrigin(0.5, 1).setDepth(animalDepth(b, y)).setTint(this.tint),
           icon: this.scene.add.image(x, y - 16, 'icon-heart').setOrigin(0.5, 1).setDepth(DEPTH.icon).setVisible(false),
           buildingId: b.id, tx, ty, wait: Math.random() * 2000,
         };
         this.animals.set(a.id, v);
       }
-      const key = animalTexture(a);
+      const key = textureFor(animalTexture(a), season);
       if (v.sprite.texture.key !== key) v.sprite.setTexture(key);
       const icon = statusIcon(a);
       v.icon.setVisible(icon !== null);

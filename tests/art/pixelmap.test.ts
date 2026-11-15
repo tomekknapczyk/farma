@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { validateSprite, type PixelSprite } from '../../src/art/pixelmap';
 import { PLACEHOLDERS } from '../../src/art/sprites/placeholders';
-import { TEXTURE_KEYS, textureFor } from '../../src/art/registry';
+import { SPRITES, TEXTURE_KEYS, textureFor } from '../../src/art/registry';
+import { PALETTE } from '../../src/art/palette';
+import { ROUND1 } from '../../src/art/sprites/round1';
 
 describe('validateSprite', () => {
   it('reports rows of different length', () => {
@@ -51,5 +53,42 @@ describe('placeholders', () => {
       expect(TEXTURE_KEYS).toContain(key.split('@')[0]);
       expect(validateSprite(PLACEHOLDERS[key]), key).toEqual([]);
     }
+  });
+});
+
+describe('round 1 art', () => {
+  const size = (sp: { rows: string[] }) => [sp.rows[0].length, sp.rows.length];
+
+  it('every sprite is valid, overrides a known key and uses only palette colours', () => {
+    const colours = new Set<string>(Object.values(PALETTE));
+    for (const sp of ROUND1) {
+      expect(validateSprite(sp), sp.key).toEqual([]);
+      expect(TEXTURE_KEYS, sp.key).toContain(sp.key.split('@')[0]);
+      for (const row of sp.rows) {
+        for (const ch of row) if (ch !== '.') expect(colours.has(sp.palette[ch]), `${sp.key} '${ch}'`).toBe(true);
+      }
+    }
+  });
+
+  it('keeps the placeholder sizes (the tree may be taller, it is bottom-anchored)', () => {
+    for (const sp of ROUND1) {
+      const base = sp.key.split('@')[0];
+      if (base === 'tree') continue;
+      expect(size(sp), sp.key).toEqual(size(PLACEHOLDERS[base]));
+    }
+  });
+
+  it('seasonal variants match their base size', () => {
+    for (const sp of ROUND1.filter((s) => s.key.includes('@'))) {
+      expect(size(sp), sp.key).toEqual(size(SPRITES[sp.key.split('@')[0]]));
+    }
+  });
+
+  it('is what the registry serves, with winter variants', () => {
+    for (const sp of ROUND1) expect(SPRITES[sp.key]).toBe(sp);
+    for (const key of TEXTURE_KEYS) expect(SPRITES[key], key).toBeDefined();
+    expect(textureFor('crop-wheat-3', 'winter')).toBe('crop-wheat-3@winter');
+    expect(textureFor('horse-pony', 'winter')).toBe('horse-pony@winter');
+    expect(textureFor('bld-coop', 'winter')).toBe('bld-coop@winter');
   });
 });
