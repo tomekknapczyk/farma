@@ -46,7 +46,7 @@ export function mountToolbar(root: HTMLElement, controller: GameController, scen
         const can = canPlantNow(s, c);
         const free = s.freeSeeds[c];
         const locked = !can.ok && can.reason === 'locked';
-        picker.append(btn({
+        const card = btn({
           icon: `crop-${c}-3`,
           label: T.crop[c],
           sub: free > 0 ? T.freeSeeds(free) : price(CROPS[c].seed, s.coins < CROPS[c].seed ? 'short' : ''),
@@ -58,7 +58,9 @@ export function mountToolbar(root: HTMLElement, controller: GameController, scen
             crop = c;
             view.refresh();
           },
-        }));
+        });
+        if (free > 0) card.append(el('span', 'seed-badge', String(free)));
+        picker.append(card);
       }
       into.append(picker);
     }

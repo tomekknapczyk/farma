@@ -7,6 +7,7 @@ import { setUiRoot } from './ui/dom';
 import { mountHud } from './ui/hud';
 import { mountLevelUp } from './ui/levelup';
 import { mountParentMenu } from './ui/parentMenu';
+import { openShop } from './ui/shop';
 import { mountNotifications, showToast } from './ui/toast';
 import { mountToolbar } from './ui/toolbar';
 import './ui/ui.css';
@@ -36,7 +37,7 @@ const game = new Phaser.Game({
 function mountUi(scene: FarmScene): void {
   const ui = document.getElementById('ui') as HTMLElement;
   setUiRoot(ui);
-  const coinPill = mountHud(ui, controller);
+  const coinPill = mountHud(ui, controller, () => openShop(controller, scene, 'sell'));
   mountParentMenu(controller, coinPill, params.debug);
   mountToolbar(ui, controller, scene);
   mountNotifications(scene, controller);

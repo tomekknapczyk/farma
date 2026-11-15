@@ -16,7 +16,7 @@ import { btn, closeModal, el, getUiRoot, live, openModal, price } from './dom';
 import { icon, itemIcon } from './icons';
 import { report, showToast } from './toast';
 
-type Tab = 'buy' | 'sell';
+export type ShopTab = 'buy' | 'sell';
 /** A purchase that needs a building chosen first (animals, horses, upgrades). */
 type Choice =
   | { kind: 'animal'; species: 'chicken' | 'cow' }
@@ -24,10 +24,11 @@ type Choice =
   | { kind: 'upgrade' };
 
 const ITEMS: ItemId[] = ['wheat', 'carrot', 'corn', 'pumpkin', 'egg', 'milk'];
-let lastTab: Tab = 'buy';
+let lastTab: ShopTab = 'buy';
 
-export function openShop(controller: GameController, scene: FarmScene): void {
-  let tab: Tab = lastTab;
+/** Opens on `startTab` when given (storage bar -> sell), else on the last used tab. */
+export function openShop(controller: GameController, scene: FarmScene, startTab?: ShopTab): void {
+  let tab: ShopTab = startTab ?? lastTab;
   let choice: Choice | null = null;
   const m = openModal(T.tool.shop, 'icon-shop');
 

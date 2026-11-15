@@ -35,6 +35,7 @@ export const T = {
 
   buy: 'Kup',
   sell: 'Sprzedaj',
+  storage: 'Magazyn',
   feed: 'Nakarm',
   treat: 'Smakołyk',
   vet: 'Weterynarz',

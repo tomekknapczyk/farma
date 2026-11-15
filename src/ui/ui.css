@@ -121,6 +121,26 @@ html, body {
 .xp-bar { width: 140px; height: 16px; border: 3px solid var(--night); border-radius: 8px; background: var(--white); overflow: hidden; }
 .xp-fill { height: 100%; background: var(--green); transition: width 0.3s; }
 .hud-season { font-size: 20px; }
+.hud { flex-wrap: wrap; row-gap: 8px; }
+/* storage bar: all six items always visible, zeros dimmed; tap opens the shop on "Sprzedaj" */
+.pill.storage {
+  pointer-events: auto;
+  touch-action: manipulation;
+  cursor: pointer;
+  min-height: 52px;
+  gap: 6px;
+  padding: 0 12px 0 8px;
+  font: inherit;
+  font-size: 20px;
+  color: inherit;
+}
+.pill.storage:active { transform: translateY(2px); }
+.store-item { display: inline-flex; align-items: center; gap: 2px; transition: opacity 0.2s; }
+.store-item.zero { opacity: 0.45; }
+.store-item.bump { animation: store-bump 0.35s ease-out; }
+@keyframes store-bump { 40% { transform: scale(1.35); } }
+.store-icon { width: 36px; height: 27px; object-fit: contain; }
+.store-num { min-width: 1.4ch; text-align: left; }
 
 /* ---------- toolbar ---------- */
 .toolbar {
@@ -140,6 +160,11 @@ html, body {
 .btn.tool.shop { margin-left: 18px; background: var(--green); box-shadow: inset 0 -4px 0 var(--green-d); color: var(--white); }
 .btn.crop { width: 104px; min-height: 96px; font-size: 15px; }
 .btn.crop .btn-icon { width: 48px; height: 36px; }
+.seed-badge {
+  position: absolute; top: -8px; left: -8px; min-width: 28px; height: 28px; padding: 0 6px;
+  border-radius: 14px; background: var(--green); color: var(--white); border: 3px solid var(--night);
+  font-size: 16px; display: flex; align-items: center; justify-content: center; pointer-events: none;
+}
 .placing .toolbar { display: none; }
 
 /* ---------- placement bar ---------- */
