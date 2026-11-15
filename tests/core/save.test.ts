@@ -54,6 +54,14 @@ describe('save', () => {
     expect(deserialize('not json')).toBeNull();
     expect(st.setItem).not.toHaveBeenCalled();
   });
+  it('loadGame normalizes xp that is behind the stored level (curve changed)', () => {
+    const st = fakeStore();
+    const s = createInitialState(1); s.level = 5; s.xp = 3487;
+    saveGame(st, s);
+    const l = loadGame(st, 1);
+    expect(l.level).toBe(5);
+    expect(l.xp).toBe(3575);
+  });
   it('exportFileName', () => {
     expect(exportFileName(new Date('2026-11-15'))).toBe('farma-kopia-2026-11-15.json');
   });

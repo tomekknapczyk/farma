@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { SEASON_MS, TRANSITION_MS } from '../../src/core/config';
-import { addXp, isUnlocked, sell, spend, unlocksAt, updateSafetyNet, xpProgress } from '../../src/core/economy';
+import { SEASON_MS, TRANSITION_MS, xpToNext } from '../../src/core/config';
+import {
+  addXp, isUnlocked, levelThreshold, normalizeProgress, sell, spend, unlocksAt, updateSafetyNet, xpProgress,
+} from '../../src/core/economy';
 import { tick } from '../../src/core/tick';
 import { ctx, expectUnchanged, newTestState } from '../../src/core/testutil';
 
@@ -31,6 +33,31 @@ describe('xp and levels', () => {
     const s = newTestState({ xp: 0, level: 1 });
     addXp(s, ctx(), 160);
     expect(xpProgress(s)).toEqual({ level: 2, current: 10, needed: 522 });
+  });
+});
+
+describe('normalizeProgress (xp behind the current level after a curve change)', () => {
+  it('levelThreshold(5) is the cumulative xp for level 5', () => {
+    expect(levelThreshold(1)).toBe(0);
+    expect(levelThreshold(5)).toBe(3575);
+  });
+  it('raises xp to the current level threshold; level unchanged; bar then moves', () => {
+    const s = newTestState({ level: 5, xp: 3487 });
+    normalizeProgress(s);
+    expect(s.level).toBe(5);
+    expect(s.xp).toBe(3575);
+    expect(xpProgress(s)).toEqual({ level: 5, current: 0, needed: xpToNext(5) });
+    const c = ctx();
+    addXp(s, c, 3);
+    expect(xpProgress(s).current).toBe(3);
+    expect(s.level).toBe(5);
+    expect(c.events).toHaveLength(0);
+  });
+  it('leaves a consistent state untouched', () => {
+    const s = newTestState({ level: 2, xp: 160 });
+    const before = JSON.stringify(s);
+    normalizeProgress(s);
+    expect(JSON.stringify(s)).toBe(before);
   });
 });
 

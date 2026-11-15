@@ -1,4 +1,5 @@
 import { BREEDS, BUILDINGS, CROPS, MAX_LEVEL, SPECIES, WEATHER_TABLE } from './config';
+import { normalizeProgress } from './economy';
 import { createInitialState } from './state';
 import type { GameState } from './types';
 
@@ -70,7 +71,7 @@ export function loadGame(store: Store, seed: number): GameState {
   try { raw = store.getItem(SAVE_KEY); } catch { return createInitialState(seed); }
   if (raw === null) return createInitialState(seed);
   const s = deserialize(raw);
-  if (s) return s;
+  if (s) { normalizeProgress(s); return s; }
   try { store.setItem(CORRUPT_KEY, raw); } catch { /* ignore quota errors */ }
   return createInitialState(seed);
 }

@@ -106,6 +106,17 @@ describe('GameController', () => {
     c.dispose();
   });
 
+  it('importSave normalizes xp that is behind the stored level (curve changed)', async () => {
+    const st = fakeStore();
+    const c = new GameController(st, opts());
+    const s = createInitialState(1); s.level = 5; s.xp = 3487;
+    expect(await c.importSave(file(serialize(s)))).toBe(true);
+    expect(c.state.level).toBe(5);
+    expect(c.state.xp).toBe(3575);
+    expect(JSON.parse(st.data[SAVE_KEY]).xp).toBe(3575);
+    c.dispose();
+  });
+
   it('act saves on ok and not on failure', () => {
     const st = fakeStore();
     const c = new GameController(st, opts());

@@ -12,16 +12,25 @@ export function spend(s: GameState, amount: number): boolean {
 }
 
 /** Cumulative xp needed to reach `level` (level 1 = 0). */
-function thresholdFor(level: number): number {
+export function levelThreshold(level: number): number {
   let t = 0;
   for (let l = 1; l < level; l++) t += xpToNext(l);
   return t;
 }
 
+/**
+ * A save made under an older xp curve can hold xp below the current level's threshold (level never drops, so
+ * unlocks are kept). Raise xp to that threshold so the level bar starts at 0 and moves again. Never lowers level.
+ */
+export function normalizeProgress(s: GameState): void {
+  const min = levelThreshold(s.level);
+  if (s.xp < min) s.xp = min;
+}
+
 /** s.xp is cumulative. Levels up in a loop (one levelUp event each) until MAX_LEVEL; xp keeps growing there. */
 export function addXp(s: GameState, ctx: Ctx, n: number): void {
   s.xp += n;
-  while (s.level < MAX_LEVEL && s.xp >= thresholdFor(s.level + 1)) {
+  while (s.level < MAX_LEVEL && s.xp >= levelThreshold(s.level + 1)) {
     s.level += 1;
     ctx.events.push({ type: 'levelUp', level: s.level });
   }
@@ -30,7 +39,7 @@ export function addXp(s: GameState, ctx: Ctx, n: number): void {
 /** At MAX_LEVEL: needed = xpToNext(MAX_LEVEL) and current is capped at needed (bar stays full). */
 export function xpProgress(s: GameState): { level: number; current: number; needed: number } {
   const needed = xpToNext(s.level);
-  const current = Math.min(Math.max(s.xp - thresholdFor(s.level), 0), needed);
+  const current = Math.min(Math.max(s.xp - levelThreshold(s.level), 0), needed);
   return { level: s.level, current, needed };
 }
 

@@ -1,4 +1,5 @@
 import { MAX_DT_MS } from '../core/config';
+import { normalizeProgress } from '../core/economy';
 import { createRng } from '../core/rng';
 import { CORRUPT_KEY, deserialize, exportFileName, loadGame, saveGame, serialize, SAVE_KEY } from '../core/save';
 import { createInitialState } from '../core/state';
@@ -130,6 +131,7 @@ export class GameController {
     let s;
     try { s = deserialize(await file.text()); } catch { return false; }
     if (!s) return false;
+    normalizeProgress(s);
     this.state = s;
     this.generation++;
     this.save();
