@@ -1,5 +1,6 @@
 import { MAX_DT_MS } from './config';
 import { updateCrops } from './crops';
+import { updateSafetyNet } from './economy';
 import { getSeasonInfo } from './seasons';
 import type { Ctx, GameState } from './types';
 import { updateWeather } from './weather';
@@ -16,5 +17,6 @@ export function tick(s: GameState, ctx: Ctx, dtMs: number): void {
   }
   updateWeather(s, ctx);
   updateCrops(s, ctx, dt);
-  // Later tasks add here, in order: updateAnimals -> updateSafetyNet
+  // Task 6 adds updateAnimals here, before updateSafetyNet
+  updateSafetyNet(s, ctx);
 }
