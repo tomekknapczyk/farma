@@ -143,6 +143,7 @@ export class FarmScene extends Phaser.Scene {
       this.view.update(delta);
     }
     this.weather.layout();
+    this.weather.update(delta);
   }
 
   private refresh(): void {
