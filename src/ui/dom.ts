@@ -87,41 +87,62 @@ export function openModal(title: Node | string, titleIcon?: string): Modal {
 
 export function closeModal(): void { current?.close(); }
 
+/** Fallback catch-up when a press never produces a click (finger slid off, gesture cancelled). */
+export const CLICK_WAIT_MS = 400;
+
 /**
  * Re-renders `render` into `target` whenever the controller notifies and `key()` changed.
  * Skipping unchanged keys keeps buttons stable under the finger (notify runs every 250 ms).
- * `refresh()` re-renders now (after local UI state changed); `stop()` unsubscribes.
+ * A re-render is never done while a press on `target` is in progress: it is deferred until that
+ * press's `click` has been dispatched (iOS fires the synthetic click asynchronously after touchend,
+ * so catching up on pointerup would remove the tapped node first), or CLICK_WAIT_MS after release
+ * if no click arrives. `refresh()` re-renders now (after local UI state changed); `stop()` cleans up.
  */
 export function live(
   sub: (fn: () => void) => () => void, key: () => string, target: HTMLElement, render: (into: HTMLElement) => void,
 ): { refresh(): void; stop(): void } {
   let last: string | null = null;
-  // never swap buttons while a finger is down on them (the click would be lost); catch up on release
-  let pressed = false;
+  let pressed = false; // pointer down on target, click not yet dispatched
   let pending = false;
-  const run = (force: boolean) => {
-    const k = key();
-    if (!force && k === last) return;
-    if (pressed && !force) { pending = true; return; }
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const draw = (k: string) => {
     last = k;
     pending = false;
     target.replaceChildren();
     render(target);
   };
-  const down = () => { pressed = true; };
-  const up = () => {
+  const run = () => {
+    const k = key();
+    if (k === last) return;
+    if (pressed) { pending = true; return; }
+    draw(k);
+  };
+  const release = () => {
+    if (!pressed) return;
     pressed = false;
-    if (pending) setTimeout(() => run(false), 0); // after the click event of this press
+    if (timer !== null) { clearTimeout(timer); timer = null; }
+    if (pending) setTimeout(run, 0); // after the click handlers of this press have run
+  };
+  const down = () => {
+    pressed = true;
+    if (timer !== null) { clearTimeout(timer); timer = null; }
+  };
+  const up = () => {
+    if (pressed && timer === null) timer = setTimeout(release, CLICK_WAIT_MS);
   };
   target.addEventListener('pointerdown', down);
+  target.addEventListener('click', release, true); // capture: before buttons stop propagation
   window.addEventListener('pointerup', up);
   window.addEventListener('pointercancel', up);
-  run(true);
-  const unsub = sub(() => run(false));
+  draw(key());
+  const unsub = sub(run);
   const stop = () => {
     unsub();
+    if (timer !== null) clearTimeout(timer);
+    target.removeEventListener('pointerdown', down);
+    target.removeEventListener('click', release, true);
     window.removeEventListener('pointerup', up);
     window.removeEventListener('pointercancel', up);
   };
-  return { refresh: () => run(true), stop };
+  return { refresh: () => draw(key()), stop };
 }

@@ -7,13 +7,13 @@ import { sellHorse } from '../core/horses';
 import type { BreedId, Building, CropId, GameState } from '../core/types';
 import type { GameController } from '../game/controller';
 import type { FarmScene } from '../game/FarmScene';
-import { statusIcon } from '../game/render/farmView';
+import { statusIcon } from '../game/render/animalArt';
 import { T } from './copy';
 import { btn, el, live, openModal, price } from './dom';
 import { animalIcon, icon, itemIcon } from './icons';
 import { report, showToast } from './toast';
 
-const FEED_STEPS = [1, 5] as const;
+const FEED_STEPS = [[1, T.one], [5, T.five]] as const;
 
 export function openBuildingPanel(controller: GameController, scene: FarmScene, buildingId: string): void {
   const b0 = controller.state.buildings.find((v) => v.id === buildingId);
@@ -75,7 +75,7 @@ function feedChooser(controller: GameController, b: Building): HTMLElement {
       icon(itemIcon(f), 'row-icon'),
       el('span', 'row-count', T.times(s.storage[f])),
       el('span', 'spacer'),
-      ...FEED_STEPS.map((n) => btn({ label: String(n), cls: 'small', onTap: () => fill(n) })),
+      ...FEED_STEPS.map(([n, label]) => btn({ label, cls: 'small', onTap: () => fill(n) })),
       btn({ label: T.max, cls: 'small', onTap: () => fill(Math.max(1, controller.state.storage[f])) }),
     ));
   }

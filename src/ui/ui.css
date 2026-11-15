@@ -160,6 +160,7 @@
 .modal {
   width: min(680px, calc(100vw - 32px));
   max-height: calc(100vh - 140px);
+  max-height: calc(100dvh - 140px);
   display: flex;
   flex-direction: column;
   background: var(--sand);
@@ -260,7 +261,7 @@
   animation: pop 0.35s cubic-bezier(0.3, 1.6, 0.6, 1);
 }
 .levelup h1 { margin: 0; font-size: 48px; }
-.levelup-star { width: 72px; height: 72px; }
+.levelup-star { width: 96px; height: 96px; padding: 10px; background: var(--night); border: 4px solid var(--white); border-radius: 50%; }
 .unlocks { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
 .unlock { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 20px; }
 .unlock-icon { width: 72px; height: 64px; object-fit: contain; }

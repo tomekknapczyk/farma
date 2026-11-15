@@ -1,12 +1,13 @@
 import Phaser from 'phaser';
 import { textureFor } from '../../art/registry';
-import { animalStatus, troughCap } from '../../core/animals';
+import { troughCap } from '../../core/animals';
 import { MAP_SIZE, PARCEL_SIZE } from '../../core/config';
 import { cropStage, isReady } from '../../core/crops';
 import { isTileUnlocked, parcelOf } from '../../core/map';
 import { getSeasonInfo } from '../../core/seasons';
 import type { Animal, Building, GameState, Season } from '../../core/types';
 import { isoToScreen } from '../iso';
+import { animalTexture, statusIcon } from './animalArt';
 
 /** Ground is flat (depth 0); objects sort by (x + y); highlight and icons float above. */
 export const DEPTH = { ground: 0, object: 10, highlight: 800, icon: 1000 };
@@ -221,21 +222,6 @@ export class FarmView {
     for (const [id, v] of this.animals) {
       if (!seen.has(id)) { v.sprite.destroy(); v.icon.destroy(); this.animals.delete(id); }
     }
-  }
-}
-
-export function animalTexture(a: Animal): string {
-  const young = a.youngMsLeft > 0;
-  if (a.species === 'horse') return `${young ? 'foal' : 'horse'}-${a.breed ?? 'pony'}`;
-  return young ? `${a.species}-young` : a.species;
-}
-
-export function statusIcon(a: Animal): string | null {
-  switch (animalStatus(a)) {
-    case 'sick': return 'icon-sick';
-    case 'ready': return a.species === 'cow' ? 'icon-milk' : 'icon-egg';
-    case 'hungry': return 'icon-hungry';
-    default: return null;
   }
 }
 

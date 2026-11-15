@@ -1,7 +1,7 @@
 /** Shop modal (Kup / Sprzedaj) and placement mode for fields, buildings and parcels. */
 import { buildBuilding, buyAnimal, capacity, upgradeBuilding } from '../core/animals';
 import {
-  BREEDS, BUILDINGS, CROPS, FIELD_COST, PARCEL_LEVEL, PARCEL_SIZE, PRODUCTS, SPECIES, TRACTOR, UPGRADE, parcelCost,
+  BREEDS, BUILDINGS, CROPS, FIELD_COST, MAP_SIZE, PARCEL_LEVEL, PARCEL_SIZE, PRODUCTS, SPECIES, TRACTOR, UPGRADE, parcelCost,
 } from '../core/config';
 import { buildField } from '../core/crops';
 import { sell } from '../core/economy';
@@ -10,7 +10,7 @@ import { buyParcel, canPlace, parcelOf } from '../core/map';
 import { buyTractor } from '../core/tractor';
 import type { ActionResult, BreedId, Building, BuildingKind, GameState, ItemId } from '../core/types';
 import type { GameController } from '../game/controller';
-import type { FarmScene, Placement } from '../game/FarmScene';
+import type { FarmScene, Placement, PlacementZone } from '../game/FarmScene';
 import { T } from './copy';
 import { btn, closeModal, el, getUiRoot, live, openModal, price } from './dom';
 import { icon, itemIcon } from './icons';
@@ -30,9 +30,6 @@ export function openShop(controller: GameController, scene: FarmScene): void {
   let tab: Tab = lastTab;
   let choice: Choice | null = null;
   const m = openModal(T.tool.shop, 'icon-shop');
-  const tabs = el('div', 'tabs');
-  const content = el('div', 'shop-content');
-  m.body.append(tabs, content);
 
   const done = (r: ActionResult, level: number): boolean => {
     const ok = report(r, level);
@@ -40,11 +37,11 @@ export function openShop(controller: GameController, scene: FarmScene): void {
     return ok;
   };
 
-  const renderTabs = () => {
-    tabs.replaceChildren(
+  const renderTabs = (into: HTMLElement) => {
+    into.append(el('div', 'tabs',
       btn({ label: T.buy, cls: 'tab', active: tab === 'buy', onTap: () => { tab = lastTab = 'buy'; view.refresh(); } }),
       btn({ label: T.sell, cls: 'tab', active: tab === 'sell', onTap: () => { tab = lastTab = 'sell'; choice = null; view.refresh(); } }),
-    );
+    ));
   };
 
   const buyGrid = (into: HTMLElement) => {
@@ -107,8 +104,13 @@ export function openShop(controller: GameController, scene: FarmScene): void {
   const choose = (c: Choice) => {
     const list = candidates(controller.state, c);
     if (list.length === 0) {
-      const need: BuildingKind = c.kind === 'animal' ? SPECIES[c.species].building : c.kind === 'horse' ? 'stable' : 'coop';
-      showToast(c.kind === 'upgrade' ? T.reason('invalid') : T.needFirst(T.building[need]), 'error');
+      if (c.kind === 'upgrade') {
+        // nothing to upgrade: either no building yet, or every building is already upgraded
+        showToast(controller.state.buildings.length === 0 ? T.buildFirst : T.allUpgraded, 'error');
+      } else {
+        const need: BuildingKind = c.kind === 'animal' ? SPECIES[c.species].building : 'stable';
+        showToast(T.needFirst(T.building[need]), 'error');
+      }
       return;
     }
     if (list.length === 1) { buyIn(c, list[0]); return; }
@@ -164,9 +166,12 @@ export function openShop(controller: GameController, scene: FarmScene): void {
     return JSON.stringify([tab, choice, s.coins, s.level, s.storage, s.hasTractor, s.parcels,
       s.buildings.map((b) => [b.id, b.upgraded]), s.animals.length]);
   };
-  const view = live((fn) => controller.subscribe(fn), key, content, (into) => {
-    renderTabs();
-    if (tab === 'buy') buyGrid(into); else sellList(into);
+  // tabs live inside the re-rendered target so the press guard covers them too
+  const view = live((fn) => controller.subscribe(fn), key, m.body, (into) => {
+    renderTabs(into);
+    const content = el('div', 'shop-content');
+    into.append(content);
+    if (tab === 'buy') buyGrid(content); else sellList(content);
   });
   m.onClose(view.stop);
 }
@@ -220,11 +225,27 @@ function placeBuilding(controller: GameController, scene: FarmScene, kind: Build
 
 function placeParcel(controller: GameController, scene: FarmScene): void {
   // dry run on a copy: buyParcel owns the adjacency, level and price rules
-  const wouldBuy = (x: number, y: number) =>
-    buyParcel(structuredClone(controller.state), { rng: { next: () => 0 }, events: [] }, parcelOf(x, y)).ok;
+  const dryRun = (index: number, coins?: number) => {
+    const copy = structuredClone(controller.state);
+    if (coins !== undefined) copy.coins = coins;
+    return buyParcel(copy, { rng: { next: () => 0 }, events: [] }, index).ok;
+  };
+  const perRow = MAP_SIZE / PARCEL_SIZE;
+  const zones = (): PlacementZone[] => {
+    const out: PlacementZone[] = [];
+    controller.state.parcels.forEach((owned, i) => {
+      if (owned || !dryRun(i, Number.MAX_SAFE_INTEGER)) return; // not adjacent (or locked)
+      out.push({
+        x: (i % perRow) * PARCEL_SIZE, y: Math.floor(i / perRow) * PARCEL_SIZE, w: PARCEL_SIZE, h: PARCEL_SIZE,
+        kind: dryRun(i) ? 'ok' : 'expensive',
+      });
+    });
+    return out;
+  };
   const end = startPlacement(scene, 'icon-parcel', {
     w: PARCEL_SIZE, h: PARCEL_SIZE, snap: PARCEL_SIZE,
-    valid: wouldBuy,
+    valid: (x, y) => dryRun(parcelOf(x, y)),
+    zones,
     onPlace: (x, y) => {
       if (report(controller.act(buyParcel, parcelOf(x, y)), PARCEL_LEVEL)) { end(); showToast(T.bought, 'good'); }
     },

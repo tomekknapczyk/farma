@@ -1,5 +1,7 @@
 /** Short toasts, rejected-action messages and game-event notifications (floating gains). */
+import { canPlantNow } from '../core/crops';
 import type { ActionResult, GameEvent } from '../core/types';
+import type { GameController } from '../game/controller';
 import { EV_GAME_EVENT, type FarmScene } from '../game/FarmScene';
 import { T } from './copy';
 import { el, getUiRoot } from './dom';
@@ -32,12 +34,15 @@ export function report(r: ActionResult, lockLevel = 0): boolean {
 }
 
 /** Listens to core events re-emitted by the scene. Level-ups are handled by levelup.ts. */
-export function mountNotifications(scene: FarmScene): void {
+export function mountNotifications(scene: FarmScene, controller: GameController): void {
   scene.events.on(EV_GAME_EVENT, (e: GameEvent) => {
     switch (e.type) {
       case 'born': showToast(T.born, 'good'); break;
       case 'sick': showToast(T.sick, 'error'); break;
-      case 'safetyNet': showToast(T.safetyNet, 'good'); break;
+      case 'safetyNet':
+        // same rule as core updateSafetyNet: seeds when wheat can be planted, otherwise wheat + coins
+        showToast(canPlantNow(controller.state, 'wheat').ok ? T.safetyNet : T.safetyNetWinter, 'good');
+        break;
       case 'gain': {
         const parts = [];
         if (e.qty) parts.push({ text: T.plus(e.qty), icon: e.item ? itemIcon(e.item) : undefined });

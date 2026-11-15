@@ -34,7 +34,7 @@ function mountUi(scene: FarmScene): void {
   setUiRoot(ui);
   mountHud(ui, controller);
   mountToolbar(ui, controller, scene);
-  mountNotifications(scene);
+  mountNotifications(scene, controller);
   mountLevelUp(scene);
   if (params.debug) (window as unknown as { __farma: unknown }).__farma = { controller, scene, game };
 }

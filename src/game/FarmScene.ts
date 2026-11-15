@@ -23,7 +23,13 @@ export interface Placement {
   texture?: string;
   valid(x: number, y: number): boolean;
   onPlace(x: number, y: number): void;
+  /** optional areas highlighted up front (e.g. every buyable parcel); re-read on each state refresh */
+  zones?(): PlacementZone[];
 }
+
+/** 'ok' = can be placed/bought now; 'expensive' = allowed but not affordable yet. */
+export interface PlacementZone { x: number; y: number; w: number; h: number; kind: 'ok' | 'expensive' }
+const ZONE_COLOR = { ok: 0x6abe30, expensive: 0xdf7126 };
 
 export interface FloatPart { text: string; icon?: string }
 
@@ -52,6 +58,7 @@ export class FarmScene extends Phaser.Scene {
   private view!: FarmView;
   private highlight!: Phaser.GameObjects.Graphics;
   private ghost!: Phaser.GameObjects.Graphics;
+  private zones!: Phaser.GameObjects.Graphics;
   private ghostImg!: Phaser.GameObjects.Image;
   private placement: Placement | null = null;
   private ghostTile: { x: number; y: number } | null = null;
@@ -84,6 +91,7 @@ export class FarmScene extends Phaser.Scene {
     registerAll(this);
     this.view = new FarmView(this);
     this.highlight = this.add.graphics().setDepth(DEPTH.highlight);
+    this.zones = this.add.graphics().setDepth(DEPTH.highlight);
     this.ghost = this.add.graphics().setDepth(DEPTH.highlight + 1);
     this.ghostImg = this.add.image(0, 0, 'bld-coop').setOrigin(0.5, 1).setAlpha(0.6).setDepth(DEPTH.highlight + 2)
       .setVisible(false);
@@ -102,7 +110,7 @@ export class FarmScene extends Phaser.Scene {
 
   private refresh(): void {
     this.view.refresh(this.controller.state);
-    if (this.placement) this.drawGhost(this.ghostTile);
+    if (this.placement) { this.drawZones(); this.drawGhost(this.ghostTile); }
     for (const e of this.controller.drainEvents()) this.events.emit(EV_GAME_EVENT, e as GameEvent);
   }
 
@@ -116,6 +124,23 @@ export class FarmScene extends Phaser.Scene {
     this.ghost.clear();
     this.ghostImg.setVisible(false);
     if (p) this.highlight.clear();
+    this.drawZones();
+  }
+
+  private drawZones(): void {
+    this.zones.clear();
+    for (const z of this.placement?.zones?.() ?? []) {
+      const c = ZONE_COLOR[z.kind];
+      const top = isoToScreen(z.x, z.y);
+      const right = isoToScreen(z.x + z.w, z.y);
+      const bottom = isoToScreen(z.x + z.w, z.y + z.h);
+      const left = isoToScreen(z.x, z.y + z.h);
+      const pts = [top, right, bottom, left].map((p) => ({ x: p.sx, y: p.sy }));
+      this.zones.fillStyle(c, 0.25);
+      this.zones.fillPoints(pts, true);
+      this.zones.lineStyle(2, c, 0.9);
+      this.zones.strokePoints(pts, true);
+    }
   }
 
   get placing(): boolean {

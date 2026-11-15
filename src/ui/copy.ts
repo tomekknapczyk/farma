@@ -36,7 +36,6 @@ export const T = {
 
   buy: 'Kup',
   sell: 'Sprzedaj',
-  build: 'Buduj',
   feed: 'Nakarm',
   treat: 'Smakołyk',
   vet: 'Weterynarz',
@@ -61,6 +60,8 @@ export const T = {
 
   locked: (level: number) => `Od poziomu ${level}`,
   needFirst: (what: string) => `Najpierw: ${what}`,
+  buildFirst: 'Najpierw zbuduj zagrodę',
+  allUpgraded: 'Wszystko rozbudowane',
   reason(r: Reason, level = 0): string {
     return r === 'locked' ? T.locked(level) : REASON[r];
   },
@@ -83,5 +84,6 @@ export const T = {
   born: 'Urodziło się młode!',
   sick: 'Zwierzę zachorowało',
   safetyNet: 'Prezent: nasiona',
+  safetyNetWinter: 'Prezent: pszenica i monety',
   gainXp: (n: number) => `+${n} XP`,
 };

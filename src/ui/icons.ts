@@ -40,7 +40,7 @@ export function itemIcon(item: ItemId): string {
   return item === 'egg' || item === 'milk' ? `icon-${item}` : `crop-${item}-3`;
 }
 
-export { animalTexture as animalIcon } from '../game/render/farmView';
+export { animalTexture as animalIcon } from '../game/render/animalArt';
 
 /** Icon for an unlocksAt() key such as 'crop:carrot', 'building:coop', 'parcels'. */
 export function unlockIcon(key: string): string {

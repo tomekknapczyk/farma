@@ -107,6 +107,7 @@ export function mountToolbar(root: HTMLElement, controller: GameController, scen
     if (o.kind === 'building') { openBuildingPanel(controller, scene, o.id); return; }
     const a = controller.state.animals.find((v) => v.id === o.id);
     if (!a) return;
+    // Deliberate departure from the brief (accepted by the controller, spec 3.3/4.3 "zbiera się stuknięciem"):
     // with Ręka/Zbierz a ready product is collected straight away; otherwise the animal panel opens
     if (a.productReady && (scene.currentTool === 'hand' || scene.currentTool === 'harvest')) {
       report(controller.act(collectProduct, a.id));
