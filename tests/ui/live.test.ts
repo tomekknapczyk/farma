@@ -70,3 +70,29 @@ describe('live()', () => {
     expect(t.render).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('live() scroll', () => {
+  afterEach(() => { document.body.replaceChildren(); });
+
+  it('keeps the scroll position of the target and its scrolling ancestors across re-renders', () => {
+    let notify: () => void = () => {};
+    let value = 'a';
+    const outer = document.createElement('div');
+    const target = document.createElement('div');
+    outer.append(target);
+    document.body.append(outer);
+    // a browser clamps scrollTop to 0 when the content is emptied; emulate that in render
+    const render = (into: HTMLElement) => {
+      into.scrollTop = 0;
+      outer.scrollTop = 0;
+      into.append(document.createElement('p'));
+    };
+    live((fn) => { notify = fn; return () => {}; }, () => value, target, render);
+    target.scrollTop = 120;
+    outer.scrollTop = 40;
+    value = 'b';
+    notify();
+    expect(target.scrollTop).toBe(120);
+    expect(outer.scrollTop).toBe(40);
+  });
+});

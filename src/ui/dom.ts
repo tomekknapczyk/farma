@@ -108,8 +108,13 @@ export function live(
   const draw = (k: string) => {
     last = k;
     pending = false;
+    // emptying the target collapses its height, which resets the scroll of the scrolling box
+    // (the modal body itself or an ancestor): remember and restore it so live updates don't jump
+    const scrolled: [HTMLElement, number][] = [];
+    for (let e: HTMLElement | null = target; e; e = e.parentElement) if (e.scrollTop > 0) scrolled.push([e, e.scrollTop]);
     target.replaceChildren();
     render(target);
+    for (const [e, top] of scrolled) e.scrollTop = top;
   };
   const run = () => {
     const k = key();
