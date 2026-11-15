@@ -1,4 +1,5 @@
 import { MAX_DT_MS } from './config';
+import { updateAnimals } from './animals';
 import { updateCrops } from './crops';
 import { updateSafetyNet } from './economy';
 import { getSeasonInfo } from './seasons';
@@ -17,6 +18,6 @@ export function tick(s: GameState, ctx: Ctx, dtMs: number): void {
   }
   updateWeather(s, ctx);
   updateCrops(s, ctx, dt);
-  // Task 6 adds updateAnimals here, before updateSafetyNet
+  updateAnimals(s, ctx, dt);
   updateSafetyNet(s, ctx);
 }
