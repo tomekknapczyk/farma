@@ -21,7 +21,6 @@ const REASON: Record<Exclude<Reason, 'locked'>, string> = {
 };
 
 export const T = {
-  item: ITEM,
   crop: ITEM as Record<CropId, string>,
   species: SPECIES,
   breed: BREED,

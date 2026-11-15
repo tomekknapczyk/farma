@@ -141,4 +141,3 @@ describe('live() focused input', () => {
     expect(render).toHaveBeenCalledTimes(2);
   });
 });
-
