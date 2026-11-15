@@ -228,9 +228,10 @@ export class FarmScene extends Phaser.Scene {
     }
   }
 
-  /** Floating "+3" / "+2 XP" lines rising from tile (x, y). */
-  floatText(x: number, y: number, parts: FloatPart[]): void {
-    const { sx, sy } = isoToScreen(x, y);
+  /** Floating "+3" / "+2 XP" lines rising from tile (x, y), or from above animal `animalId` when it has a sprite. */
+  floatText(x: number, y: number, parts: FloatPart[], animalId?: string): void {
+    const head = animalId !== undefined ? this.view.animalHead(animalId) : null;
+    const { sx, sy } = head ? { sx: head.x, sy: head.y } : isoToScreen(x, y);
     parts.forEach((part, i) => {
       const c = this.add.container(sx, sy - 4 - i * 10).setDepth(DEPTH.icon + 10);
       const txt = this.add.text(0, 0, part.text, {

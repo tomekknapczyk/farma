@@ -97,7 +97,7 @@ export function collectProduct(s: GameState, ctx: Ctx, animalId: string): Action
   const b = s.buildings.find((v) => v.id === a.buildingId);
   a.productReady = false;
   s.storage[product] += 1;
-  ctx.events.push({ type: 'gain', x: b?.x ?? 0, y: b?.y ?? 0, item: product, qty: 1, xp: PRODUCTS[product].xp });
+  ctx.events.push({ type: 'gain', x: b?.x ?? 0, y: b?.y ?? 0, item: product, qty: 1, xp: PRODUCTS[product].xp, animalId: a.id });
   addXp(s, ctx, PRODUCTS[product].xp);
   return { ok: true };
 }

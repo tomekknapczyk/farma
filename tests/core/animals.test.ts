@@ -20,8 +20,8 @@ function run(s: ReturnType<typeof newTestState>, c: ReturnType<typeof ctx>, ms: 
 }
 
 describe('buildings', () => {
-  it('builds a coop at level 3 for 60', () => {
-    const s = newTestState({ level: 3, coins: 100, parcels: new Array(16).fill(true) });
+  it('builds a coop at level 2 for 60', () => {
+    const s = newTestState({ level: 2, coins: 100, parcels: new Array(16).fill(true) });
     expect(buildBuilding(s, ctx(), 'coop', 0, 0)).toEqual({ ok: true });
     expect(s.coins).toBe(40);
     expect(s.xp).toBe(5);
@@ -114,10 +114,12 @@ describe('animals', () => {
     run(s, ctx(), 90000);
     const c = ctx();
     const xp = s.xp;
-    expect(collectProduct(s, c, s.animals[0].id)).toEqual({ ok: true });
+    const animalId = s.animals[0].id;
+    expect(collectProduct(s, c, animalId)).toEqual({ ok: true });
     expect(s.storage.egg).toBe(1);
     expect(s.xp).toBe(xp + 2);
-    expect(c.events).toContainEqual({ type: 'gain', x: 0, y: 0, item: 'egg', qty: 1, xp: 2 });
+    // the gain names the animal, so the float starts at its sprite (building tile as fallback)
+    expect(c.events).toContainEqual({ type: 'gain', x: 0, y: 0, item: 'egg', qty: 1, xp: 2, animalId });
     expectUnchanged(s, () => collectProduct(s, ctx(), s.animals[0].id), 'not-ready');
   });
   it('sickness stops production, vet heals', () => {

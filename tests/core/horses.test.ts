@@ -27,7 +27,7 @@ describe('buyHorse', () => {
     expect(s.ownedBreeds).toEqual(['pony']);
     expect(s.animals[0]).toMatchObject({ species: 'horse', breed: 'pony', youngMsLeft: 0, cycleMs: -1, bornOnFarm: false });
   });
-  it('arabian locked at level 7', () => {
+  it('arabian (level 8) still locked at level 7', () => {
     const { s, id } = stableState(7, 1000);
     expectUnchanged(s, () => buyHorse(s, ctx(), 'arabian', id), 'locked');
   });
@@ -41,8 +41,8 @@ describe('buyHorse', () => {
     const p = stableState(7, 100);
     expectUnchanged(p.s, () => buyHorse(p.s, ctx(), 'pony', p.id), 'no-money');
   });
-  it('builds a stable via buildBuilding at level 7', () => {
-    const s = newTestState({ level: 7, coins: 400, parcels: new Array(16).fill(true) });
+  it('builds a stable via buildBuilding at level 5', () => {
+    const s = newTestState({ level: 5, coins: 400, parcels: new Array(16).fill(true) });
     expect(buildBuilding(s, ctx(), 'stable', 0, 0)).toEqual({ ok: true });
   });
 });
@@ -77,7 +77,7 @@ describe('sellHorse', () => {
     expect(s.xp).toBe(10);
     expect(s.animals).toHaveLength(0);
     expect(s.ownedBreeds).toContain('arabian');
-    expect(c.events).toContainEqual({ type: 'gain', x: 0, y: 0, coins: 500, xp: 10 });
+    expect(c.events).toContainEqual({ type: 'gain', x: 0, y: 0, coins: 500, xp: 10, animalId: 'harabian' });
   });
 });
 

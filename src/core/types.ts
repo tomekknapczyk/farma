@@ -41,6 +41,7 @@ export type GameEvent =
   | { type: 'seasonChanged'; season: Season }
   | { type: 'weatherChanged'; kind: WeatherKind }
   | { type: 'safetyNet' }
-  | { type: 'gain'; x: number; y: number; coins?: number; xp?: number; item?: ItemId; qty?: number };
+  /** x, y = tile the gain floats from; `animalId` = the animal it came from (the float starts at its sprite). */
+  | { type: 'gain'; x: number; y: number; coins?: number; xp?: number; item?: ItemId; qty?: number; animalId?: string };
 export interface Rng { next(): number } // [0,1)
 export interface Ctx { rng: Rng; events: GameEvent[] }

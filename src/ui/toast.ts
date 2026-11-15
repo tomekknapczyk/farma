@@ -48,7 +48,7 @@ export function mountNotifications(scene: FarmScene, controller: GameController)
         if (e.qty) parts.push({ text: T.plus(e.qty), icon: e.item ? itemIcon(e.item) : undefined });
         if (e.coins) parts.push({ text: T.plus(e.coins), icon: 'icon-coin' });
         if (e.xp) parts.push({ text: T.gainXp(e.xp), icon: 'icon-star' });
-        scene.floatText(e.x, e.y, parts);
+        scene.floatText(e.x, e.y, parts, e.animalId);
         break;
       }
       default: break;

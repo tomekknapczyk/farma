@@ -43,6 +43,6 @@ export function sellHorse(s: GameState, ctx: Ctx, animalId: string): ActionResul
   s.coins += coins;
   s.animals.splice(idx, 1);
   addXp(s, ctx, XP.sellHorse);
-  ctx.events.push({ type: 'gain', x: b?.x ?? 0, y: b?.y ?? 0, coins, xp: XP.sellHorse });
+  ctx.events.push({ type: 'gain', x: b?.x ?? 0, y: b?.y ?? 0, coins, xp: XP.sellHorse, animalId: a.id });
   return { ok: true };
 }
