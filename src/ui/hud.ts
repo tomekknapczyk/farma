@@ -46,7 +46,7 @@ export function mountHud(root: HTMLElement, controller: GameController, onStorag
     const xp = xpProgress(s);
     const info = getSeasonInfo(s.timeMs);
     const pct = (xp.current / xp.needed) * 100;
-    const pctKey = Math.round(pct * 2) / 2; // 0.5% steps: small gains still re-render
+    const pctKey = Math.round(pct * 2) / 2; // render key changes every 0.5% of the bar; the fill itself is exact
     const key = [s.coins, xp.level, pctKey, s.weather.kind, info.label, info.season, ...STORAGE_ITEMS.map((i) => s.storage[i])].join('|');
     if (key === last) return;
     last = key;

@@ -76,7 +76,7 @@ export const MAX_LEVEL = 10;
 // retuned by scripts/sim.ts after the playtest (2026-11-15; tap-limited bot, 40 taps/min). Shape changed from
 // 500 * 1.45^(l-1) to 150 * l^1.8: small first step (level 2 in ~5 min), flatter later steps because the XP rate is
 // tap-capped (~60 xp/min). Tune 3 (2026-11-15): harvest/collect XP now scales with value (CROPS/PRODUCTS .xp), so
-// the same curve is ~14% faster at the top: bot lvl2 ~6 min, lvl3 ~15, lvl6 ~98, lvl10 ~556. A gentler exponent
+// the same curve is ~13% faster at the top: bot lvl2 ~6 min, lvl3 ~15, lvl6 ~98, lvl10 ~556. A gentler exponent
 // (1.75 / 1.7) would drop lvl6 below 95 and lvl10 below 480, so the curve is unchanged.
 export function xpToNext(level: number): number {
   return Math.round(150 * Math.pow(level, 1.8));
