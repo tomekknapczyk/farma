@@ -1,11 +1,13 @@
 import Phaser from 'phaser';
 import { GameController } from './game/controller';
 import { FarmScene } from './game/FarmScene';
+import { openStore } from './game/storage';
+import { T } from './ui/copy';
 import { setUiRoot } from './ui/dom';
 import { mountHud } from './ui/hud';
 import { mountLevelUp } from './ui/levelup';
 import { mountParentMenu } from './ui/parentMenu';
-import { mountNotifications } from './ui/toast';
+import { mountNotifications, showToast } from './ui/toast';
 import { mountToolbar } from './ui/toolbar';
 import './ui/ui.css';
 
@@ -20,7 +22,8 @@ function parseParams(search: string): { speed: number; seed: number; debug: bool
 }
 
 const params = parseParams(window.location.search);
-const controller = new GameController(window.localStorage, params);
+const { store, persistent } = openStore(() => window.localStorage);
+const controller = new GameController(store, params);
 
 const game = new Phaser.Game({
   type: Phaser.AUTO,
@@ -38,6 +41,7 @@ function mountUi(scene: FarmScene): void {
   mountToolbar(ui, controller, scene);
   mountNotifications(scene, controller);
   mountLevelUp(scene);
+  if (!persistent) showToast(T.noSave, 'error'); // progress lives only until the page closes
   if (params.debug) (window as unknown as { __farma: unknown }).__farma = { controller, scene, game };
 }
 game.scene.add('farm', FarmScene, true, { controller, onReady: mountUi });

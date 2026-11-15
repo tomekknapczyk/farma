@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { GameController } from '../../src/game/controller';
+import { afterEach, describe, it, expect, beforeEach, vi } from 'vitest';
+import { GameController, REVOKE_MS } from '../../src/game/controller';
 import { MAX_DT_MS } from '../../src/core/config';
-import { SAVE_KEY, serialize } from '../../src/core/save';
+import { CORRUPT_KEY, SAVE_KEY, serialize } from '../../src/core/save';
 import { createInitialState } from '../../src/core/state';
 import type { ActionResult } from '../../src/core/types';
 
@@ -135,6 +135,114 @@ describe('GameController', () => {
     expect(c.state.coins).toBe(createInitialState(7).coins);
     expect(JSON.parse(store.data[SAVE_KEY]).coins).toBe(c.state.coins);
     expect(fn).toHaveBeenCalledTimes(1);
+    c.dispose();
+  });
+
+  it('importSave and reset bump the state generation (views keyed by reused ids must rebuild)', async () => {
+    const c = new GameController(fakeStore(), opts());
+    expect(c.generation).toBe(0);
+    expect(await c.importSave(file(serialize(createInitialState(2))))).toBe(true);
+    expect(c.generation).toBe(1);
+    expect(await c.importSave(file('{bad'))).toBe(false);
+    expect(c.generation).toBe(1);
+    c.reset(3);
+    expect(c.generation).toBe(2);
+    c.act(() => ({ ok: true }));
+    expect(c.generation).toBe(2);
+    c.dispose();
+  });
+
+  it('recoverFromCorrupt moves the raw save to CORRUPT_KEY and starts fresh', () => {
+    const s = createInitialState(1); s.coins = 321;
+    const raw = serialize(s);
+    const st = fakeStore({ [SAVE_KEY]: raw });
+    const c = new GameController(st, opts());
+    expect(c.state.coins).toBe(321);
+    c.recoverFromCorrupt();
+    expect(st.data[CORRUPT_KEY]).toBe(raw);
+    expect(c.state.coins).toBe(createInitialState(1).coins);
+    expect(JSON.parse(st.data[SAVE_KEY]).coins).toBe(c.state.coins);
+    expect(c.generation).toBe(1);
+    c.dispose();
+  });
+});
+
+describe('GameController.exportSave', () => {
+  let click: ReturnType<typeof vi.fn>;
+  let revoke: ReturnType<typeof vi.fn>;
+  beforeEach(() => {
+    vi.useFakeTimers();
+    click = vi.fn();
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(click);
+    URL.createObjectURL = vi.fn(() => 'blob:farma');
+    revoke = vi.fn();
+    URL.revokeObjectURL = revoke;
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+  const stubShare = (share: () => Promise<void>, canShare = true) => {
+    vi.stubGlobal('navigator', { ...navigator, canShare: vi.fn(() => canShare), share: vi.fn(share) });
+    return navigator as unknown as { share: ReturnType<typeof vi.fn> };
+  };
+
+  it('fallback: anchor download, blob URL revoked only after REVOKE_MS', async () => {
+    vi.stubGlobal('navigator', { ...navigator, canShare: undefined, share: undefined });
+    const c = new GameController(fakeStore(), opts());
+    expect(await c.exportSave()).toBe('downloaded');
+    expect(click).toHaveBeenCalledTimes(1);
+    expect(document.querySelector('a')).toBeNull(); // temporary link removed
+    expect(revoke).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(REVOKE_MS - 1);
+    expect(revoke).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(revoke).toHaveBeenCalledWith('blob:farma');
+    c.dispose();
+  });
+
+  it('share sheet when files can be shared (iPad): no download', async () => {
+    const nav = stubShare(async () => {});
+    const c = new GameController(fakeStore(), opts());
+    expect(await c.exportSave()).toBe('shared');
+    const arg = nav.share.mock.calls[0][0] as { files: File[]; title: string };
+    expect(arg.title).toBe('Farma');
+    expect(arg.files[0].name).toMatch(/^farma-kopia-\d{4}-\d{2}-\d{2}\.json$/);
+    expect(JSON.parse(await arg.files[0].text()).version).toBe(1);
+    expect(click).not.toHaveBeenCalled();
+    c.dispose();
+  });
+
+  it('share sheet dismissed (AbortError): nothing else happens', async () => {
+    stubShare(async () => { throw new DOMException('x', 'AbortError'); });
+    const c = new GameController(fakeStore(), opts());
+    expect(await c.exportSave()).toBe('cancelled');
+    expect(click).not.toHaveBeenCalled();
+    c.dispose();
+  });
+
+  it('share refused for another reason: falls back to the download', async () => {
+    stubShare(async () => { throw new DOMException('x', 'NotAllowedError'); });
+    const c = new GameController(fakeStore(), opts());
+    expect(await c.exportSave()).toBe('downloaded');
+    expect(click).toHaveBeenCalledTimes(1);
+    c.dispose();
+  });
+
+  it('canShare false: download', async () => {
+    const nav = stubShare(async () => {}, false);
+    const c = new GameController(fakeStore(), opts());
+    expect(await c.exportSave()).toBe('downloaded');
+    expect(nav.share).not.toHaveBeenCalled();
+    c.dispose();
+  });
+
+  it('returns failed when even the download cannot start', async () => {
+    vi.stubGlobal('navigator', { ...navigator, canShare: undefined, share: undefined });
+    URL.createObjectURL = vi.fn(() => { throw new Error('no blobs'); });
+    const c = new GameController(fakeStore(), opts());
+    expect(await c.exportSave()).toBe('failed');
     c.dispose();
   });
 });

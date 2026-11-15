@@ -35,21 +35,29 @@ export function canPlace(s: GameState, x: number, y: number, w: number, h: numbe
   return true;
 }
 
+/** True when parcel `index` is not owned yet and shares an edge with an owned parcel. */
+export function parcelAdjacent(s: GameState, index: number): boolean {
+  if (!Number.isInteger(index) || index < 0 || index >= s.parcels.length || s.parcels[index]) return false;
+  const px = index % PARCELS_PER_ROW;
+  const py = Math.floor(index / PARCELS_PER_ROW);
+  return (px > 0 && s.parcels[index - 1]) ||
+    (px < PARCELS_PER_ROW - 1 && s.parcels[index + 1]) ||
+    (py > 0 && s.parcels[index - PARCELS_PER_ROW]) ||
+    (py < PARCELS_PER_ROW - 1 && s.parcels[index + PARCELS_PER_ROW]);
+}
+
+/** Price of the next parcel (the start parcel is free, so it does not count as bought). */
+export function nextParcelCost(s: GameState): number {
+  return parcelCost(s.parcels.filter(Boolean).length - 1);
+}
+
 export function buyParcel(s: GameState, ctx: Ctx, index: number): ActionResult {
   if (!Number.isInteger(index) || index < 0 || index >= s.parcels.length || s.parcels[index]) {
     return { ok: false, reason: 'invalid' };
   }
   if (s.level < PARCEL_LEVEL) return { ok: false, reason: 'locked' };
-  const px = index % PARCELS_PER_ROW;
-  const py = Math.floor(index / PARCELS_PER_ROW);
-  const adjacent =
-    (px > 0 && s.parcels[index - 1]) ||
-    (px < PARCELS_PER_ROW - 1 && s.parcels[index + 1]) ||
-    (py > 0 && s.parcels[index - PARCELS_PER_ROW]) ||
-    (py < PARCELS_PER_ROW - 1 && s.parcels[index + PARCELS_PER_ROW]);
-  if (!adjacent) return { ok: false, reason: 'invalid' };
-  const bought = s.parcels.filter(Boolean).length - 1;
-  if (!spend(s, parcelCost(bought))) return { ok: false, reason: 'no-money' };
+  if (!parcelAdjacent(s, index)) return { ok: false, reason: 'invalid' };
+  if (!spend(s, nextParcelCost(s))) return { ok: false, reason: 'no-money' };
   s.parcels[index] = true;
   addXp(s, ctx, XP.buy);
   return { ok: true };

@@ -1,6 +1,6 @@
 import { MAX_DT_MS } from '../core/config';
 import { createRng } from '../core/rng';
-import { deserialize, exportFileName, loadGame, saveGame, serialize, SAVE_KEY } from '../core/save';
+import { CORRUPT_KEY, deserialize, exportFileName, loadGame, saveGame, serialize, SAVE_KEY } from '../core/save';
 import { createInitialState } from '../core/state';
 import { tick } from '../core/tick';
 import type { ActionResult, Ctx, GameEvent, GameState } from '../core/types';
@@ -8,10 +8,17 @@ import type { ActionResult, Ctx, GameEvent, GameState } from '../core/types';
 const AUTOSAVE_MS = 5000;
 const NOTIFY_MS = 250;
 const MAX_CHUNKS = 100;
+/** The fallback download link stays valid this long (Safari reads the blob after click() returns). */
+export const REVOKE_MS = 10_000;
+
+/** 'shared' = handed to the share sheet; 'downloaded' = anchor download started; 'cancelled' = share sheet dismissed. */
+export type ExportResult = 'shared' | 'downloaded' | 'cancelled' | 'failed';
 
 export class GameController {
   state: GameState;
   ctx: Ctx;
+  /** Bumped whenever the whole state is swapped (import, new game): ids are reused across states. */
+  generation = 0;
   private subs = new Set<() => void>();
   private sinceSave = 0;
   private sinceNotify = 0;
@@ -83,16 +90,38 @@ export class GameController {
     saveGame(this.store, this.state);
   }
 
-  exportSave(): void {
-    const blob = new Blob([serialize(this.state)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = exportFileName(new Date());
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
+  /**
+   * Backup file. Where the Web Share API takes files (iPad Safari) the share sheet opens ("Zapisz w
+   * Plikach"); share() is called synchronously so the tap's user activation still counts. Otherwise an
+   * anchor download, with the blob URL kept alive for REVOKE_MS (revoking at once breaks Safari).
+   */
+  async exportSave(): Promise<ExportResult> {
+    const name = exportFileName(new Date());
+    const json = serialize(this.state);
+    try {
+      const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean };
+      const file = typeof File === 'function' ? new File([json], name, { type: 'application/json' }) : null;
+      if (file && typeof nav.share === 'function' && nav.canShare?.({ files: [file] })) {
+        try {
+          await nav.share({ files: [file], title: 'Farma' });
+          return 'shared';
+        } catch (e) {
+          if ((e as { name?: string } | null)?.name === 'AbortError') return 'cancelled';
+          // e.g. NotAllowedError: fall through to the download
+        }
+      }
+      const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), REVOKE_MS);
+      return 'downloaded';
+    } catch {
+      return 'failed';
+    }
   }
 
   async importSave(file: File): Promise<boolean> {
@@ -100,6 +129,7 @@ export class GameController {
     try { s = deserialize(await file.text()); } catch { return false; }
     if (!s) return false;
     this.state = s;
+    this.generation++;
     this.save();
     this.notify();
     return true;
@@ -109,8 +139,20 @@ export class GameController {
   reset(seed: number): void {
     this.state = createInitialState(seed);
     this.ctx = { rng: createRng(seed), events: [] };
+    this.generation++;
     this.save();
     this.notify();
+  }
+
+  /**
+   * The loaded state passed validation but still broke the first refresh/tick: keep the raw save
+   * under CORRUPT_KEY (for recovery by hand) and start a fresh game, so the game and menu still work.
+   */
+  recoverFromCorrupt(): void {
+    let raw: string | null = null;
+    try { raw = this.store.getItem(SAVE_KEY); } catch { /* unreadable */ }
+    try { this.store.setItem(CORRUPT_KEY, raw ?? serialize(this.state)); } catch { /* quota */ }
+    this.reset(this.opts.seed);
   }
 
   dispose(): void {

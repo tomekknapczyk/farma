@@ -6,11 +6,11 @@ import { tileOccupant } from '../core/map';
 import { useTractor } from '../core/tractor';
 import type { CropId } from '../core/types';
 import type { GameController } from '../game/controller';
-import { EV_OBJECT_TAP, EV_TILE_DRAG, EV_TILE_TAP, type FarmScene, type ObjectTap, type Tool } from '../game/FarmScene';
+import { EV_DRAG_START, EV_OBJECT_TAP, EV_TILE_DRAG, EV_TILE_TAP, type FarmScene, type ObjectTap, type Tool } from '../game/FarmScene';
 import { T } from './copy';
 import { btn, el, live, price } from './dom';
 import { openAnimalPanel, openBuildingPanel } from './panels';
-import { openShop } from './shop';
+import { openParcelPlacement, openShop } from './shop';
 import { report, showToast } from './toast';
 
 const TOOL_ICON: Record<Tool, string> = {
@@ -68,6 +68,8 @@ export function mountToolbar(root: HTMLElement, controller: GameController, scen
     ));
   };
 
+  let collected = new Set<string>(); // animals collected during the current drag (each once)
+
   const onTile = (x: number, y: number, drag: boolean) => {
     const s = controller.state;
     const tool = scene.currentTool;
@@ -79,6 +81,15 @@ export function mountToolbar(root: HTMLElement, controller: GameController, scen
       return;
     }
     const occ = tileOccupant(s, x, y);
+    if (drag && occ?.kind === 'building' && (tool === 'hand' || tool === 'harvest')) {
+      // drag-to-collect (spec 4.3): sweeping over a pen collects every ready product in it
+      const ready = s.animals.filter((a) => a.buildingId === occ.building.id && a.productReady && !collected.has(a.id));
+      for (const a of ready) {
+        collected.add(a.id);
+        report(controller.act(collectProduct, a.id));
+      }
+      return;
+    }
     if (occ?.kind !== 'field') {
       if (!drag && tool !== 'hand') showToast(T.reason('invalid'), 'error');
       return;
@@ -104,6 +115,7 @@ export function mountToolbar(root: HTMLElement, controller: GameController, scen
   };
 
   const onObject = (o: ObjectTap) => {
+    if (o.kind === 'lock') { openParcelPlacement(controller, scene, o.parcel); return; }
     if (o.kind === 'building') { openBuildingPanel(controller, scene, o.id); return; }
     const a = controller.state.animals.find((v) => v.id === o.id);
     if (!a) return;
@@ -117,6 +129,7 @@ export function mountToolbar(root: HTMLElement, controller: GameController, scen
   };
 
   scene.events.on(EV_TILE_TAP, (x: number, y: number) => onTile(x, y, false));
+  scene.events.on(EV_DRAG_START, () => { collected = new Set(); });
   scene.events.on(EV_TILE_DRAG, (x: number, y: number) => onTile(x, y, true));
   scene.events.on(EV_OBJECT_TAP, onObject);
   const view = live((fn) => controller.subscribe(fn), key, bar, render);

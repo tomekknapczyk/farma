@@ -4,7 +4,7 @@ import { MAP_SIZE, START_PARCEL, PARCEL_SIZE } from '../core/config';
 import { tileOccupant } from '../core/map';
 import type { GameEvent } from '../core/types';
 import type { GameController } from './controller';
-import { isoToScreen, nearestZoomIndex, screenToIso, TILE_H, TILE_W, ZOOM_STEPS } from './iso';
+import { isoToScreen, nearestZoomIndex, placementAnchor, screenToIso, TILE_H, TILE_W, ZOOM_STEPS } from './iso';
 import { DEPTH, FarmView, type ObjectTap } from './render/farmView';
 import { WeatherFx } from './render/weatherFx';
 
@@ -15,6 +15,10 @@ export type { ObjectTap };
  * Placement mode (fields, buildings, parcels): a ghost footprint follows the pointer, green when
  * `valid(x, y)`, red otherwise; a tap calls `onPlace(x, y)` with the footprint's top tile. With `snap`
  * the footprint snaps to a grid of that size (parcels). Normal tool/object events are suppressed.
+ * Footprints wider than one tile are centred on the pointer (the finger is always on the footprint).
+ * With `confirm` placement takes two steps: the first tap only picks the spot (ghost stays there), a
+ * second tap on the picked footprint or `confirmPlacement()` (the "Postaw" button) places it, and a
+ * tap elsewhere moves the ghost. Taps cost nothing until confirmed, so there are no accidental buys.
  */
 export interface Placement {
   w: number;
@@ -26,6 +30,10 @@ export interface Placement {
   onPlace(x: number, y: number): void;
   /** optional areas highlighted up front (e.g. every buyable parcel); re-read on each state refresh */
   zones?(): PlacementZone[];
+  /** two-step placement (2x2 buildings), see above */
+  confirm?: boolean;
+  /** two-step only: the picked spot changed (null = nothing picked yet); `ok` = valid there now */
+  onPick?(pick: { x: number; y: number; ok: boolean } | null): void;
 }
 
 /** 'ok' = can be placed/bought now; 'expensive' = allowed but not affordable yet. */
@@ -36,10 +44,14 @@ export interface FloatPart { text: string; icon?: string }
 
 /** scene.events: (x, y) on a single-pointer tap (< TAP_SLOP px of movement). */
 export const EV_TILE_TAP = 'tileTap';
-/** scene.events: (x, y) for each new tile entered while dragging with a non-hand tool. */
+/** scene.events: (x, y) for each new tile entered while dragging with a non-hand tool, or with Ręka when the
+ * drag started on a building with ready products (drag-to-collect). */
 export const EV_TILE_DRAG = 'tileDrag';
-/** scene.events: (ObjectTap) when a tap lands on an animal sprite, a building sprite or a building footprint.
- * Such taps do not emit EV_TILE_TAP. */
+/** scene.events: () when a tool drag starts (before its first EV_TILE_DRAG). */
+export const EV_DRAG_START = 'dragStart';
+/** scene.events: (ObjectTap) when a tap lands on a parcel lock, an animal sprite, a building sprite or a building
+ * footprint. Such taps do not emit EV_TILE_TAP. With a non-hand tool a field tile under the finger wins
+ * over a building roof drawn on top of it. */
 export const EV_OBJECT_TAP = 'objectTap';
 /** scene.events: (GameEvent) for each core event; the scene drains controller events on every refresh. */
 export const EV_GAME_EVENT = 'gameEvent';
@@ -63,7 +75,9 @@ export class FarmScene extends Phaser.Scene {
   private zones!: Phaser.GameObjects.Graphics;
   private ghostImg!: Phaser.GameObjects.Image;
   private placement: Placement | null = null;
-  private ghostTile: { x: number; y: number } | null = null;
+  private ghostPt: Pt | null = null; // world point the ghost follows (hover / last touch)
+  private picked: { x: number; y: number } | null = null; // two-step placement: chosen anchor
+  private firstFrameOk = false;
   private unsubscribe: (() => void) | null = null;
 
   private pointers = new Map<number, Pt>();
@@ -100,22 +114,41 @@ export class FarmScene extends Phaser.Scene {
     this.setupCamera();
     this.weather = new WeatherFx(this);
     this.setupInput();
-    this.refresh();
+    try {
+      this.refresh();
+    } catch (e) {
+      // a save that passed validation but still breaks rendering: keep it aside and start fresh
+      console.error(e);
+      this.controller.recoverFromCorrupt();
+      this.refresh();
+    }
     this.unsubscribe = this.controller.subscribe(() => this.refresh());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.unsubscribe?.());
     this.onReady?.(this);
   }
 
   update(_time: number, delta: number): void {
-    this.controller.step(delta);
-    this.view.update(delta);
+    if (!this.firstFrameOk) {
+      try {
+        this.controller.step(delta);
+        this.view.update(delta);
+        this.firstFrameOk = true;
+      } catch (e) {
+        console.error(e);
+        this.controller.recoverFromCorrupt();
+        this.firstFrameOk = true;
+      }
+    } else {
+      this.controller.step(delta);
+      this.view.update(delta);
+    }
     this.weather.layout();
   }
 
   private refresh(): void {
-    this.view.refresh(this.controller.state);
+    this.view.refresh(this.controller.state, this.controller.generation);
     this.weather.set(this.controller.state.weather.kind);
-    if (this.placement) { this.drawZones(); this.drawGhost(this.ghostTile); }
+    if (this.placement) { this.drawZones(); this.drawGhost(this.ghostPt); }
     for (const e of this.controller.drainEvents()) this.events.emit(EV_GAME_EVENT, e as GameEvent);
   }
 
@@ -125,7 +158,9 @@ export class FarmScene extends Phaser.Scene {
 
   setPlacement(p: Placement | null): void {
     this.placement = p;
-    this.ghostTile = null;
+    this.ghostPt = null;
+    this.picked = null;
+    p?.onPick?.(null);
     this.ghost.clear();
     this.ghostImg.setVisible(false);
     if (p) this.highlight.clear();
@@ -152,19 +187,30 @@ export class FarmScene extends Phaser.Scene {
     return this.placement !== null;
   }
 
-  private anchorFor(t: { x: number; y: number }, p: Placement): { x: number; y: number } {
-    if (p.snap) return { x: Math.floor(t.x / p.snap) * p.snap, y: Math.floor(t.y / p.snap) * p.snap };
-    return { x: Math.min(t.x, MAP_SIZE - p.w), y: Math.min(t.y, MAP_SIZE - p.h) };
+  /** Two-step placement: place at the picked spot ("Postaw" button). False when nothing is picked yet. */
+  confirmPlacement(): boolean {
+    const p = this.placement;
+    if (!p || !this.picked) return false;
+    p.onPlace(this.picked.x, this.picked.y);
+    return true;
   }
 
-  private drawGhost(t: { x: number; y: number } | null): void {
-    this.ghostTile = t;
+  /** Shows the ghost over tile (x, y) as if the pointer were there (e.g. after tapping a parcel lock). */
+  previewAt(x: number, y: number): void {
+    const { sx, sy } = isoToScreen(x, y);
+    this.drawGhost({ x: sx, y: sy + TILE_H / 2 });
+  }
+
+  private drawGhost(w: Pt | null): void {
+    this.ghostPt = w;
     this.ghost.clear();
     this.ghostImg.setVisible(false);
     const p = this.placement;
-    if (!p || !t) return;
-    const a = this.anchorFor(t, p);
+    if (!p) return;
+    const a = this.picked ?? (w && inMap(screenToIso(w.x, w.y)) ? placementAnchor(w, p) : null);
+    if (!a) return;
     const ok = p.valid(a.x, a.y);
+    if (this.picked) p.onPick?.({ ...this.picked, ok });
     const color = ok ? 0x6abe30 : 0xac3232;
     this.ghost.fillStyle(color, 0.45);
     this.ghost.lineStyle(1, color, 1);
@@ -277,8 +323,10 @@ export class FarmScene extends Phaser.Scene {
     return t.x >= 0 && t.y >= 0 && t.x < MAP_SIZE && t.y < MAP_SIZE ? t : null;
   }
 
-  private showHighlight(t: { x: number; y: number } | null): void {
-    if (this.placement) { this.drawGhost(t); return; }
+  /** Hover/touch feedback at screen point `p`: the ghost in placement mode, else the tile outline. */
+  private showHighlight(p: Pt | null): void {
+    if (this.placement) { this.drawGhost(p ? this.toWorld(p) : null); return; }
+    const t = p ? this.tileAt(p) : null;
     this.highlight.clear();
     if (!t) return;
     const pts = diamondPts(t.x, t.y);
@@ -301,7 +349,7 @@ export class FarmScene extends Phaser.Scene {
       this.gesture = 'pending';
       this.start = { x: p.x, y: p.y };
       this.startScroll = { x: this.cameras.main.scrollX, y: this.cameras.main.scrollY };
-      this.showHighlight(this.tileAt(p));
+      this.showHighlight(p);
     } else if (this.pointers.size >= 2) {
       this.beginPinch();
     }
@@ -309,15 +357,16 @@ export class FarmScene extends Phaser.Scene {
 
   private onMove(p: Phaser.Input.Pointer): void {
     if (!this.pointers.has(p.id)) {
-      if (this.pointers.size === 0 && !p.wasTouch) this.showHighlight(this.tileAt(p)); // mouse hover
+      if (this.pointers.size === 0 && !p.wasTouch) this.showHighlight(p); // mouse hover
       return;
     }
     this.pointers.set(p.id, { x: p.x, y: p.y });
     if (this.gesture === 'pinch') { this.updatePinch(); return; }
     if (this.gesture === 'pending' && Math.hypot(p.x - this.start.x, p.y - this.start.y) >= TAP_SLOP) {
-      this.gesture = this.currentTool === 'hand' || this.placement ? 'pan' : 'drag';
+      const drag = !this.placement && (this.currentTool !== 'hand' || this.readyBuildingAt(this.start));
+      this.gesture = drag ? 'drag' : 'pan';
       this.lastDragTile = -1;
-      if (this.gesture === 'drag') this.dragOver(this.start);
+      if (this.gesture === 'drag') { this.events.emit(EV_DRAG_START); this.dragOver(this.start); }
     }
     if (this.gesture === 'pan') {
       const cam = this.cameras.main;
@@ -326,15 +375,31 @@ export class FarmScene extends Phaser.Scene {
         this.startScroll.y - (p.y - this.start.y) / cam.zoom,
       );
       this.highlight.clear();
-      if (this.placement && !p.wasTouch) this.drawGhost(this.tileAt(p));
+      if (this.placement && !p.wasTouch) this.drawGhost(this.toWorld(p));
     } else if (this.gesture === 'drag') {
       this.dragOver(p);
     }
   }
 
+  /** Ręka drag-to-collect: does a drag from screen point `p` start on a building with ready products? */
+  private readyBuildingAt(p: Pt): boolean {
+    const s = this.controller.state;
+    const w = this.toWorld(p);
+    const obj = this.view.pick(w.x, w.y);
+    let id: string | undefined;
+    if (obj?.kind === 'building') id = obj.id;
+    else if (obj?.kind === 'animal') id = s.animals.find((a) => a.id === obj.id)?.buildingId;
+    else {
+      const t = this.tileAt(p);
+      const occ = t ? tileOccupant(s, t.x, t.y) : null;
+      if (occ?.kind === 'building') id = occ.building.id;
+    }
+    return id !== undefined && s.animals.some((a) => a.buildingId === id && a.productReady);
+  }
+
   private dragOver(p: Pt): void {
     const t = this.tileAt(p);
-    this.showHighlight(t);
+    this.showHighlight(p);
     if (!t) return;
     const idx = t.y * MAP_SIZE + t.x;
     if (idx === this.lastDragTile) return;
@@ -361,20 +426,28 @@ export class FarmScene extends Phaser.Scene {
 
   private tap(p: Pt): void {
     const t = this.tileAt(p);
+    const w = this.toWorld(p);
     if (this.placement) {
       if (!t) return;
       const pl = this.placement;
-      const a = this.anchorFor(t, pl);
-      this.drawGhost(t); // touch has no hover: show where the tap landed
+      const a = placementAnchor(w, pl);
+      if (pl.confirm) {
+        const k = this.picked;
+        const onPicked = k !== null && t.x >= k.x && t.x < k.x + pl.w && t.y >= k.y && t.y < k.y + pl.h;
+        if (onPicked) { pl.onPlace(k.x, k.y); return; }
+        this.picked = a; // first tap (or a tap elsewhere): just show the ghost there
+        this.drawGhost(w);
+        return;
+      }
+      this.drawGhost(w); // touch has no hover: show where the tap landed
       pl.onPlace(a.x, a.y);
       return;
     }
-    const w = this.toWorld(p);
+    const occ = t ? tileOccupant(this.controller.state, t.x, t.y) : null;
+    // a tool aimed at a field just behind a building must not open the building (its roof covers the field)
+    if (t && this.currentTool !== 'hand' && occ?.kind === 'field') { this.events.emit(EV_TILE_TAP, t.x, t.y); return; }
     let obj = this.view.pick(w.x, w.y);
-    if (!obj && t) {
-      const occ = tileOccupant(this.controller.state, t.x, t.y);
-      if (occ?.kind === 'building') obj = { kind: 'building', id: occ.building.id };
-    }
+    if (!obj && occ?.kind === 'building') obj = { kind: 'building', id: occ.building.id };
     if (obj) { this.events.emit(EV_OBJECT_TAP, obj); return; }
     if (t) this.events.emit(EV_TILE_TAP, t.x, t.y);
   }
@@ -419,6 +492,10 @@ export class FarmScene extends Phaser.Scene {
     const screen = { x: p.x, y: p.y };
     this.zoomAt(zoom, this.toWorld(screen), screen);
   }
+}
+
+function inMap(t: { x: number; y: number }): boolean {
+  return t.x >= 0 && t.y >= 0 && t.x < MAP_SIZE && t.y < MAP_SIZE;
 }
 
 function diamondPts(x: number, y: number): Pt[] {

@@ -60,6 +60,7 @@ export const T = {
     load: 'Wczytaj kopię',
     newGame: 'Nowa gra',
     loaded: 'Wczytano',
+    saveFailed: 'Nie udało się',
     badFile: 'Zły plik',
     sure: 'Na pewno?',
     yesNew: 'Tak, nowa gra',
@@ -67,6 +68,9 @@ export const T = {
   },
   where: 'Gdzie?',
   placeHere: 'Stuknij na mapie',
+  placeAgain: 'Stuknij znowu',
+  placeOk: 'Postaw',
+  noSave: 'Brak zapisu',
 
   locked: (level: number) => `Od poziomu ${level}`,
   needFirst: (what: string) => `Najpierw: ${what}`,

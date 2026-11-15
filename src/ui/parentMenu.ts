@@ -67,7 +67,10 @@ function openMenu(controller: GameController, debug: boolean): void {
   renderNew();
 
   m.body.append(
-    btn({ label: T.parent.save, cls: 'wide-btn', onTap: () => controller.exportSave() }),
+    btn({
+      label: T.parent.save, cls: 'wide-btn',
+      onTap: () => { void controller.exportSave().then((r) => { if (r === 'failed') showToast(T.parent.saveFailed, 'error'); }); },
+    }),
     btn({ label: T.parent.load, cls: 'wide-btn', onTap: () => input.click() }),
     input,
     newGameBox,

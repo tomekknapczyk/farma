@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { buyParcel, canPlace, isTileUnlocked, parcelOf, tileOccupant } from '../../src/core/map';
+import { buyParcel, canPlace, isTileUnlocked, nextParcelCost, parcelAdjacent, parcelOf, tileOccupant } from '../../src/core/map';
+import { createInitialState } from '../../src/core/state';
 import { ctx, expectUnchanged, newTestState } from '../../src/core/testutil';
 
 describe('map', () => {
@@ -45,5 +46,22 @@ describe('map', () => {
     expectUnchanged(s, () => buyParcel(s, ctx(), 16), 'invalid');
     s.coins = 99;
     expectUnchanged(s, () => buyParcel(s, ctx(), 6), 'no-money');
+  });
+});
+
+describe('parcelAdjacent / nextParcelCost', () => {
+  it('only unowned parcels sharing an edge with owned land are adjacent', () => {
+    const s = createInitialState(1); // owns parcel 5 (px=1, py=1)
+    expect([1, 4, 6, 9].every((i) => parcelAdjacent(s, i))).toBe(true);
+    expect(parcelAdjacent(s, 5)).toBe(false); // owned
+    expect(parcelAdjacent(s, 0)).toBe(false); // diagonal
+    expect(parcelAdjacent(s, 7)).toBe(false); // two away
+    expect(parcelAdjacent(s, 16)).toBe(false);
+  });
+  it('next price doubles with each bought parcel', () => {
+    const s = createInitialState(1);
+    expect(nextParcelCost(s)).toBe(100);
+    s.parcels[6] = true;
+    expect(nextParcelCost(s)).toBe(200);
   });
 });

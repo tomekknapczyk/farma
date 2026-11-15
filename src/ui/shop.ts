@@ -1,12 +1,12 @@
 /** Shop modal (Kup / Sprzedaj) and placement mode for fields, buildings and parcels. */
 import { buildBuilding, buyAnimal, capacity, upgradeBuilding } from '../core/animals';
 import {
-  BREEDS, BUILDINGS, CROPS, FIELD_COST, MAP_SIZE, PARCEL_LEVEL, PARCEL_SIZE, PRODUCTS, SPECIES, TRACTOR, UPGRADE, parcelCost,
+  BREEDS, BUILDINGS, CROPS, FIELD_COST, MAP_SIZE, PARCEL_LEVEL, PARCEL_SIZE, PRODUCTS, SPECIES, TRACTOR, UPGRADE,
 } from '../core/config';
 import { buildField } from '../core/crops';
 import { sell } from '../core/economy';
 import { buyHorse } from '../core/horses';
-import { buyParcel, canPlace, parcelOf } from '../core/map';
+import { buyParcel, canPlace, nextParcelCost, parcelOf } from '../core/map';
 import { buyTractor } from '../core/tractor';
 import type { ActionResult, BreedId, Building, BuildingKind, GameState, ItemId } from '../core/types';
 import type { GameController } from '../game/controller';
@@ -62,10 +62,9 @@ export function openShop(controller: GameController, scene: FarmScene): void {
       icon: 'field-dry', label: T.field, sub: cost(FIELD_COST),
       onTap: () => placeField(controller, scene),
     }));
-    const bought = s.parcels.filter(Boolean).length - 1;
     grid.append(card({
-      icon: 'icon-parcel', label: T.parcel, sub: cost(parcelCost(bought)), lockedAt: lockAt(PARCEL_LEVEL),
-      onTap: locked(PARCEL_LEVEL, () => placeParcel(controller, scene)),
+      icon: 'icon-parcel', label: T.parcel, sub: cost(nextParcelCost(s)), lockedAt: lockAt(PARCEL_LEVEL),
+      onTap: () => openParcelPlacement(controller, scene),
     }));
     for (const k of Object.keys(BUILDINGS) as BuildingKind[]) {
       const d = BUILDINGS[k];
@@ -186,6 +185,7 @@ function candidates(s: GameState, c: Choice): Building[] {
 // Placement mode
 // -------------------------------------------------------------------------------------------------
 
+/** With `p.confirm` the bar gets a "Postaw" button, grey until a valid spot has been picked. */
 function startPlacement(scene: FarmScene, iconKey: string, p: Placement): () => void {
   closeModal();
   const root = getUiRoot();
@@ -194,16 +194,36 @@ function startPlacement(scene: FarmScene, iconKey: string, p: Placement): () => 
     bar.remove();
     root.classList.remove('placing');
   };
-  const bar = el('div', 'place-bar', icon(iconKey, 'place-icon'), el('span', 'place-label', T.placeHere),
+  const label = el('span', 'place-label', T.placeHere);
+  const ok = p.confirm
+    ? btn({ label: T.placeOk, cls: 'ok off', onTap: () => { if (!scene.confirmPlacement()) showToast(T.placeHere); } })
+    : null;
+  const bar = el('div', 'place-bar', icon(iconKey, 'place-icon'), label, ok,
     btn({ label: T.cancel, cls: 'cancel', onTap: end }));
   root.querySelector('.place-bar')?.remove();
   root.append(bar);
   root.classList.add('placing');
-  scene.setPlacement(p);
+  scene.setPlacement(!ok ? p : {
+    ...p,
+    onPick: (pick) => {
+      label.textContent = pick ? T.placeAgain : T.placeHere;
+      ok.classList.toggle('off', !pick?.ok);
+      p.onPick?.(pick);
+    },
+  });
   return end;
 }
 
-/** Fields: stays in placement so several can be laid in a row; "Anuluj" ends it. */
+/** Parcel purchase from the shop card or a tapped lock (`parcel` = that parcel, previewed at once). */
+export function openParcelPlacement(controller: GameController, scene: FarmScene, parcel?: number): void {
+  if (controller.state.level < PARCEL_LEVEL) { showToast(T.locked(PARCEL_LEVEL), 'error'); return; }
+  placeParcel(controller, scene);
+  if (parcel === undefined) return;
+  const perRow = MAP_SIZE / PARCEL_SIZE;
+  scene.previewAt((parcel % perRow) * PARCEL_SIZE + 1, Math.floor(parcel / perRow) * PARCEL_SIZE + 1);
+}
+
+/** Fields: one tap places (cheap, 1x1); stays in placement so several can be laid in a row; "Anuluj" ends it. */
 function placeField(controller: GameController, scene: FarmScene): void {
   startPlacement(scene, 'field-dry', {
     w: 1, h: 1,
@@ -212,10 +232,11 @@ function placeField(controller: GameController, scene: FarmScene): void {
   });
 }
 
+/** Buildings: two steps (tap shows the ghost, second tap or "Postaw" builds), see Placement.confirm. */
 function placeBuilding(controller: GameController, scene: FarmScene, kind: BuildingKind): void {
   const level = BUILDINGS[kind].level;
   const end = startPlacement(scene, `bld-${kind}`, {
-    w: 2, h: 2, texture: `bld-${kind}`,
+    w: 2, h: 2, texture: `bld-${kind}`, confirm: true,
     valid: (x, y) => canPlace(controller.state, x, y, 2, 2) && controller.state.coins >= BUILDINGS[kind].cost,
     onPlace: (x, y) => {
       if (report(controller.act(buildBuilding, kind, x, y), level)) { end(); showToast(T.bought, 'good'); }

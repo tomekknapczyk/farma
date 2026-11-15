@@ -3,23 +3,27 @@ import { textureFor } from '../../art/registry';
 import { troughCap } from '../../core/animals';
 import { MAP_SIZE, PARCEL_SIZE } from '../../core/config';
 import { cropStage, isReady } from '../../core/crops';
-import { isTileUnlocked, parcelOf } from '../../core/map';
+import { isTileUnlocked, nextParcelCost, parcelAdjacent, parcelOf } from '../../core/map';
 import { getSeasonInfo } from '../../core/seasons';
 import type { Animal, Building, GameState, Season } from '../../core/types';
 import { isoToScreen } from '../iso';
 import { blendTint, currentTint, mulTint, snowAmount } from '../seasonFx';
 import { animalTexture, statusIcon } from './animalArt';
+import { ViewCache } from './viewCache';
 
 /** Ground is flat (depth 0); objects sort by (x + y); highlight and icons float above. */
 export const DEPTH = { ground: 0, object: 10, highlight: 800, icon: 1000 };
 export const objectDepth = (x: number, y: number): number => DEPTH.object + (x + y) * 4;
 
-/** A tap on a building (sprite incl. roof, or footprint) or directly on an animal sprite. */
-export type ObjectTap = { kind: 'building'; id: string } | { kind: 'animal'; id: string };
+/** A tap on a building (sprite incl. roof, or footprint), directly on an animal sprite, or on a parcel lock. */
+export type ObjectTap = { kind: 'building'; id: string } | { kind: 'animal'; id: string } | { kind: 'lock'; parcel: number };
 
 const PARCELS = MAP_SIZE / PARCEL_SIZE;
 const ANIMAL_PICK_SLOP = 3; // world px around an animal sprite that still counts as a hit
 const ANIMAL_SPEED = 10; // world px per second
+/** Lock hit box around the lock centre (world px): 28x34 = 56x68 screen px at zoom 2, incl. the price. */
+const LOCK_HIT = { halfW: 14, top: 12, bottom: 22 };
+const LOCK_PRICE_DY = 13; // price line below the lock centre
 /**
  * Trees stand only on locked land and are dimmed a little so the owned land stays the focus.
  * The dimming fades out with the snow, so winter trees read as snowy white, not grey; locked
@@ -31,6 +35,9 @@ const SNOW_ON_GROUND = 0.8;
 const SNOW_ON_LOCKED = 0.45; // lighter, so locked land stays darker than owned land in winter
 const FROST_ON_FIELD = 0.4;
 const DEPTH_SNOW = 1;
+
+interface BuildingView { bld: Phaser.GameObjects.Image; trough: Phaser.GameObjects.Image; roof: Phaser.GameObjects.Image }
+interface LockView { img: Phaser.GameObjects.Image; price: Phaser.GameObjects.Text; coin: Phaser.GameObjects.Image; shown: number }
 
 interface AnimalView {
   sprite: Phaser.GameObjects.Image;
@@ -49,12 +56,13 @@ export class FarmView {
   private snowTiles: Phaser.GameObjects.Image[] = [];
   private tint = 0xffffff;
   private snow = 0;
-  private locks: Phaser.GameObjects.Image[] = [];
+  private locks: LockView[] = [];
   private trees: { img: Phaser.GameObjects.Image; x: number; y: number }[] = [];
-  private crops = new Map<string, Phaser.GameObjects.Image>();
-  private waterIcons = new Map<string, Phaser.GameObjects.Image>();
-  private buildings = new Map<string, { bld: Phaser.GameObjects.Image; trough: Phaser.GameObjects.Image; roof: Phaser.GameObjects.Image }>();
-  private animals = new Map<string, AnimalView>();
+  // views keyed by state ids; rebuilt from scratch when the controller swaps the state (see ViewCache)
+  private crops = new ViewCache<Phaser.GameObjects.Image>((img) => img.destroy());
+  private waterIcons = new ViewCache<Phaser.GameObjects.Image>((img) => img.destroy());
+  private buildings = new ViewCache<BuildingView>((v) => { v.bld.destroy(); v.trough.destroy(); v.roof.destroy(); });
+  private animals = new ViewCache<AnimalView>((v) => { v.sprite.destroy(); v.icon.destroy(); });
   private buildingById = new Map<string, Building>();
 
   constructor(private scene: Phaser.Scene) {
@@ -77,11 +85,24 @@ export class FarmView {
       const cx = (p % PARCELS) * PARCEL_SIZE + PARCEL_SIZE / 2;
       const cy = Math.floor(p / PARCELS) * PARCEL_SIZE + PARCEL_SIZE / 2;
       const { sx, sy } = isoToScreen(cx, cy);
-      this.locks.push(scene.add.image(sx, sy, 'icon-lock').setDepth(DEPTH.icon));
+      this.locks.push({
+        img: scene.add.image(sx, sy, 'icon-lock').setDepth(DEPTH.icon),
+        price: scene.add.text(sx, sy + LOCK_PRICE_DY, '', {
+          fontFamily: 'system-ui, sans-serif', fontStyle: 'bold', fontSize: '9px', color: '#fbf236',
+          stroke: '#222034', strokeThickness: 2,
+        }).setOrigin(0, 0.5).setResolution(4).setDepth(DEPTH.icon).setVisible(false),
+        coin: scene.add.image(sx, sy + LOCK_PRICE_DY, 'icon-coin').setOrigin(0, 0.5).setDepth(DEPTH.icon).setVisible(false),
+        shown: -1,
+      });
     }
   }
 
-  refresh(s: GameState): void {
+  /**
+   * `generation` = the controller's state generation: when it changes (backup import, new game) all
+   * object views are destroyed and rebuilt, because object ids are reused across states.
+   */
+  refresh(s: GameState, generation = 0): void {
+    for (const c of [this.crops, this.waterIcons, this.buildings, this.animals]) c.sync(generation);
     const season = getSeasonInfo(s.timeMs).season;
     const tint = currentTint(s.timeMs);
     const snow = snowAmount(s.timeMs);
@@ -152,6 +173,13 @@ export class FarmView {
 
   /** Topmost animal (bounds + slop) or building (opaque sprite pixel) at a world point. */
   pick(wx: number, wy: number): ObjectTap | null {
+    for (let p = this.locks.length - 1; p >= 0; p--) { // locks float above everything
+      const { img } = this.locks[p];
+      if (!img.visible) continue;
+      if (Math.abs(wx - img.x) <= LOCK_HIT.halfW && wy >= img.y - LOCK_HIT.top && wy <= img.y + LOCK_HIT.bottom) {
+        return { kind: 'lock', parcel: p };
+      }
+    }
     let best: { tap: ObjectTap; depth: number } | null = null;
     for (const [id, v] of this.animals) {
       const img = v.sprite;
@@ -185,7 +213,22 @@ export class FarmView {
         if (this.tiles[i].texture.key !== key) this.tiles[i].setTexture(key);
       }
     }
-    this.locks.forEach((img, p) => img.setVisible(!s.parcels[p]));
+    const cost = nextParcelCost(s);
+    this.locks.forEach((l, p) => {
+      l.img.setVisible(!s.parcels[p]);
+      // the price only on parcels that can be bought next (adjacent to owned land)
+      const show = parcelAdjacent(s, p);
+      l.price.setVisible(show);
+      l.coin.setVisible(show);
+      if (show && l.shown !== cost) {
+        l.shown = cost;
+        l.price.setText(String(cost));
+        l.coin.setScale(Math.min(1, 9 / Math.max(1, l.coin.height)));
+        const w = l.price.width + 1 + l.coin.displayWidth;
+        l.price.setX(l.img.x - w / 2);
+        l.coin.setX(l.img.x - w / 2 + l.price.width + 1);
+      }
+    });
     const treeKey = textureFor('tree', season);
     for (const t of this.trees) {
       const unlocked = s.parcels[parcelOf(t.x, t.y)];
@@ -217,9 +260,8 @@ export class FarmView {
       }
       drop?.setVisible(needsWater);
     }
-    for (const [id, img] of this.crops) if (!seen.has(id)) { img.destroy(); this.crops.delete(id); }
-    const fieldIds = new Set(s.fields.map((f) => f.id));
-    for (const [id, img] of this.waterIcons) if (!fieldIds.has(id)) { img.destroy(); this.waterIcons.delete(id); }
+    this.crops.prune(seen);
+    this.waterIcons.prune(new Set(s.fields.map((f) => f.id)));
   }
 
   private refreshBuildings(s: GameState, season: Season): void {
@@ -241,9 +283,7 @@ export class FarmView {
       }
       if (v.trough.texture.key !== troughKey) v.trough.setTexture(troughKey);
     }
-    for (const [id, v] of this.buildings) {
-      if (!this.buildingById.has(id)) { v.bld.destroy(); v.trough.destroy(); v.roof.destroy(); this.buildings.delete(id); }
-    }
+    this.buildings.prune(new Set(this.buildingById.keys()));
   }
 
   private refreshAnimals(s: GameState, season: Season): void {
@@ -269,9 +309,7 @@ export class FarmView {
       v.icon.setVisible(icon !== null);
       if (icon && v.icon.texture.key !== icon) v.icon.setTexture(icon);
     }
-    for (const [id, v] of this.animals) {
-      if (!seen.has(id)) { v.sprite.destroy(); v.icon.destroy(); this.animals.delete(id); }
-    }
+    this.animals.prune(seen);
   }
 }
 
