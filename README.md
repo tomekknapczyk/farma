@@ -2,6 +2,8 @@
 
 Izometryczna gra o farmie w pikselowej grafice, na iPada (Safari, dodana do ekranu głównego). TypeScript, Vite, Phaser 3.
 
+**Zagraj:** https://tomekknapczyk.github.io/farma/ — każdy push na `main` publikuje nową wersję (GitHub Actions → Pages).
+
 ## Uruchomienie
 
 ```
